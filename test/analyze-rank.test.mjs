@@ -270,7 +270,9 @@ describe('helpers', () => {
   });
 
   it('parseArgs handles repeats, equals and booleans', () => {
-    assert.deepEqual(parseArgs(['pos', '--a', '1', '--a=2', '--flag', '--b', 'x']), { positional: ['pos'], flags: { a: ['1', '2'], flag: true, b: 'x' } });
+    const { positional, flags } = parseArgs(['pos', '--a', '1', '--a=2', '--flag', '--b', 'x']);
+    assert.deepEqual(positional, ['pos']);
+    assert.deepEqual({ ...flags }, { a: ['1', '2'], flag: true, b: 'x' });
   });
 
   it('frontmatter handles block scalars, lists, CRLF, and absence', () => {

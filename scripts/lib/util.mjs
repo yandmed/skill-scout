@@ -86,7 +86,7 @@ export function hashDirectory(root) {
 
 export function parseArgs(argv) {
   const positional = [];
-  const flags = {};
+  const flags = Object.create(null); // So --__proto__ is just an unknown flag.
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (!arg.startsWith('--')) {
@@ -103,6 +103,39 @@ export function parseArgs(argv) {
     else flags[key] = value;
   }
   return { positional, flags };
+}
+
+const WINDOWS_RESERVED = /^(?:con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])(?:\..*)?$/i;
+
+/**
+ * A path that is legal in a Git tree but dangerous when written here: "a.md:x" creates a hidden
+ * NTFS stream the scanner would never see, "nul" and trailing dots don't mean what they say on
+ * Windows, and a nested .git folder could carry hooks.
+ */
+export function isUnsafeRepoPath(path) {
+  return String(path).split('/').some((segment) => segment === ''
+    || segment === '.'
+    || segment === '..'
+    || segment.toLowerCase() === '.git'
+    || /[\u0000-\u001F\u007F<>:"\\|?*]/.test(segment)
+    || /[. ]$/.test(segment)
+    || WINDOWS_RESERVED.test(segment));
+}
+
+export const isReservedName = (name) => WINDOWS_RESERVED.test(String(name));
+
+/** Symbolic links and junctions under root. Hashing and scanning only see regular files. */
+export function listLinks(root) {
+  const out = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isSymbolicLink()) out.push(full);
+      else if (entry.isDirectory()) walk(full);
+    }
+  };
+  if (existsSync(root)) walk(root);
+  return out.sort();
 }
 
 export const asArray = (value) => (value === undefined ? [] : [].concat(value));

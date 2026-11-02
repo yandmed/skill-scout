@@ -7,6 +7,40 @@ const API = 'https://api.github.com';
 const TIMEOUT_MS = 20000;
 let cachedToken;
 
+const MAX_REDIRECTS = 5;
+
+/**
+ * Redirects are followed only within the same host, so neither the token nor a pinned download
+ * can be steered somewhere else by a redirect.
+ */
+async function sameHostFetch(url, options) {
+  let current = new URL(url);
+  const host = current.host;
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
+    const response = await fetch(current, { ...options, redirect: 'manual' });
+    if (response.status < 300 || response.status >= 400) return response;
+    const next = response.headers.get('location');
+    if (!next) return response;
+    current = new URL(next, current);
+    if (current.host !== host || current.protocol !== 'https:') throw new UserError(`Refused a redirect to another host (${current.host}).`, { code: 'unsafe-redirect' });
+  }
+  throw new UserError('Too many redirects.', { code: 'unsafe-redirect' });
+}
+
+/** Reads a body up to a limit, so a server can't exhaust memory by sending more than it declared. */
+async function readLimited(response, maxBytes, path) {
+  const tooLarge = () => new UserError(`File exceeds the ${maxBytes}-byte limit: ${path}`, { code: 'file-too-large' });
+  if (Number(response.headers.get('content-length')) > maxBytes) throw tooLarge();
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of response.body ?? []) {
+    total += chunk.length;
+    if (total > maxBytes) throw tooLarge();
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
 export function githubToken() {
   if (cachedToken !== undefined) return cachedToken;
   cachedToken = process.env.GH_TOKEN || process.env.GITHUB_TOKEN || null;
@@ -24,7 +58,7 @@ export async function api(path, { allow404 = false } = {}) {
   const headers = { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'skill-scout' };
   const token = githubToken();
   if (token) headers.Authorization = `Bearer ${token}`;
-  const response = await fetch(`${API}${path}`, { headers, signal: AbortSignal.timeout(TIMEOUT_MS) });
+  const response = await sameHostFetch(`${API}${path}`, { headers, signal: AbortSignal.timeout(TIMEOUT_MS) });
   if (response.status === 404 && allow404) return null;
   if (response.status === 403 || response.status === 429) {
     const remaining = response.headers.get('x-ratelimit-remaining');
@@ -63,11 +97,9 @@ export async function subtree(repo, sha, path) {
 
 export async function downloadRaw(repo, sha, path, maxBytes) {
   const url = `https://raw.githubusercontent.com/${repo}/${sha}/${path.split('/').map(encodeURIComponent).join('/')}`;
-  const response = await fetch(url, { headers: { 'User-Agent': 'skill-scout' }, signal: AbortSignal.timeout(TIMEOUT_MS) });
+  const response = await sameHostFetch(url, { headers: { 'User-Agent': 'skill-scout' }, signal: AbortSignal.timeout(TIMEOUT_MS) });
   if (!response.ok) throw new UserError(`Download failed (${response.status}): ${path}`, { code: 'download-failed' });
-  const buffer = Buffer.from(await response.arrayBuffer());
-  if (buffer.length > maxBytes) throw new UserError(`File exceeds the ${maxBytes}-byte limit: ${path}`, { code: 'file-too-large' });
-  return buffer;
+  return readLimited(response, maxBytes, path);
 }
 
 export async function rawText(repo, ref, path, maxBytes = 2 * 1024 * 1024) {

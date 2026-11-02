@@ -69,7 +69,7 @@ const COMMANDS = {
   },
 
   async vet({ flags }) {
-    const ids = asArray(flags.id).map(String);
+    const ids = [...new Set(asArray(flags.id).map(String))]; // The same id twice would race on one folder.
     if (!ids.length) throw new UserError('Pass at least one --id.', { code: 'no-id' });
     const results = await Promise.all(ids.map(async (id) => {
       try {

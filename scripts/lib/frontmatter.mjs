@@ -11,16 +11,24 @@ const stripQuotes = (value) => {
 export function parseFrontmatter(text) {
   const source = text.replace(/^﻿/, '').replace(/\r\n/g, '\n');
   const match = source.match(/^---[ \t]*\n([\s\S]*?)\n---[ \t]*(?:\n|$)/);
-  if (!match) return { data: {}, body: source, hasFrontmatter: false, bodyStartLine: 1 };
+  if (!match) return { data: {}, body: source, hasFrontmatter: false, bodyStartLine: 1, unparsed: [] };
 
-  const data = {};
+  // Null prototype: a key named __proto__ in hostile YAML stays an ordinary, inert entry.
+  const data = Object.create(null);
+  const unparsed = [];
   const lines = match[1].split('\n');
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
-    const kv = line.match(/^([A-Za-z0-9_-]+):[ \t]*(.*)$/);
-    if (!kv) continue;
-    const [, key, rawValue] = kv;
-    const value = rawValue.trim();
+    // Quoted keys and a space before the colon are valid YAML, so Claude Code would honor them.
+    const kv = line.match(/^(?:"([^"\n]+)"|'([^'\n]+)'|([A-Za-z0-9_.-]+))[ \t]*:(?:[ \t]+(.*)|)$/);
+    if (!kv) {
+      if (line.trim() && !line.trim().startsWith('#')) unparsed.push(line);
+      continue;
+    }
+    const key = kv[1] ?? kv[2] ?? kv[3];
+    // A trailing YAML comment is not part of the value.
+    const value = (kv[4] ?? '').replace(/(^|[ \t])#.*$/, '').trim();
+    if (/^[&*!]/.test(value)) unparsed.push(line); // Anchors, aliases and tags have no use in a SKILL.md.
 
     const nested = [];
     let j = i + 1;
@@ -47,5 +55,5 @@ export function parseFrontmatter(text) {
     }
   }
   const consumed = source.slice(0, match[0].length).split('\n').length - 1;
-  return { data, body: source.slice(match[0].length), hasFrontmatter: true, bodyStartLine: consumed + 1 };
+  return { data, body: source.slice(match[0].length), hasFrontmatter: true, bodyStartLine: consumed + 1, unparsed };
 }

@@ -8,9 +8,9 @@ import { readFileSync, statSync } from 'node:fs';
 import { basename, dirname, relative, sep } from 'node:path';
 import { parseFrontmatter } from './frontmatter.mjs';
 import {
-  ARCHIVE_EXT, CODE_EXT, DOC_EXT, EXECUTABLE_EXT, HIDDEN_UNICODE, LINE_RULES, MEDIA_EXT, SEVERITY_ORDER,
+  AGENT_CONFIG_FILE, ARCHIVE_EXT, BUILTIN_COMMANDS, CODE_EXT, CONFUSABLES, DOC_EXT, EXECUTABLE_EXT, HIDDEN_UNICODE, LINE_RULES, MEDIA_EXT, SEVERITY_ORDER,
 } from './rules.mjs';
-import { hashDirectory, listFilesRecursive, sanitizeText } from './util.mjs';
+import { hashDirectory, listFilesRecursive, listLinks, sanitizeText } from './util.mjs';
 
 const MAX_TEXT_BYTES = 2 * 1024 * 1024;
 const OFFICIAL_OWNERS = new Set(['anthropics']);
@@ -28,10 +28,64 @@ function hasExecutableMagic(buf) {
 }
 
 /** ZWJ/variation selectors are legitimate inside emoji, so they never count as hidden text. */
+const CONFUSABLE_RE = new RegExp('[' + Object.keys(CONFUSABLES).join('') + ']', 'g');
+const CYRILLIC_OR_LOOKALIKE = /[\u0400-\u04FF\u03BF\u039F]/;
+const WORD_RE = /[\p{L}]{2,}/gu;
+
+/** True when one word mixes Latin letters with Cyrillic ones: real Russian or English text never does. */
+export const hasMixedScriptWord = (line) => (line.match(WORD_RE) ?? []).some((word) => /[A-Za-z]/.test(word) && CYRILLIC_OR_LOOKALIKE.test(word));
+
 const normalizeForMatching = (line) => line
   .normalize('NFKC')
   .replace(/[​-‍⁠﻿­]/g, '')
-  .replace(/[\u{E0000}-\u{E007F}]/gu, '');
+  .replace(/[\u{E0000}-\u{E007F}]/gu, '')
+  .replace(CONFUSABLE_RE, (ch) => CONFUSABLES[ch]);
+
+/** The same command with shell obfuscation undone: c"u"r"l, c\url and curl${IFS}x all read as curl. */
+export const shellDeobfuscate = (line) => line
+  .replace(/\$\{IFS\}|\$IFS\b/g, ' ')
+  .replace(/(?<=[A-Za-z0-9_-])(?:""|''|\\)(?=[A-Za-z0-9_-])/g, '')
+  .replace(/(?<=[A-Za-z0-9_-])"([A-Za-z0-9_-]{1,8})"(?=[A-Za-z0-9_-]|\s)/g, '$1')
+  .replace(/(?<=[A-Za-z0-9_-])'([A-Za-z0-9_-]{1,8})'(?=[A-Za-z0-9_-]|\s)/g, '$1');
+
+/** Matching is split into windows so a very long line can neither hide a payload nor stall a regex. */
+const WINDOW = 20000;
+const OVERLAP = 1000;
+function* windows(text) {
+  if (text.length <= WINDOW) {
+    yield text;
+    return;
+  }
+  for (let start = 0; start < text.length; start += WINDOW - OVERLAP) yield text.slice(start, start + WINDOW);
+}
+
+/** Base64 runs that decode to readable text are read as what they really say. */
+const B64_RE = /(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{24,}={0,2}(?![A-Za-z0-9+/])/g;
+export function decodeBase64Runs(text) {
+  const out = [];
+  for (const [run] of text.matchAll(B64_RE)) {
+    if (run.length > 100000) continue;
+    const decoded = Buffer.from(run, 'base64').toString('utf8');
+    if (decoded.includes('\uFFFD') || /[\u0000-\u0008\u000E-\u001F]/.test(decoded)) continue;
+    out.push(decoded);
+  }
+  return out;
+}
+
+const EXEC_PATH_CAPTURE = /\b(?:curl|wget)\b[^\n]*?(?:\s-[oO]\s*|--output[=\s]|--output-document[=\s]|>\s*)["']?([~$\w./-]+)|\bbase64\s+(?:-d|-D|--decode)\b[^\n]*?>\s*["']?([~$\w./-]+)/gi;
+
+/** Finds a file that was downloaded or decoded in one place and executed in another. */
+export function findDownloadThenRun(text) {
+  for (const match of text.matchAll(EXEC_PATH_CAPTURE)) {
+    const target = match[1] ?? match[2];
+    if (!target || target === '-' || target === '/dev/null') continue;
+    const escaped = target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const after = text.slice(match.index + match[0].length);
+    const run = new RegExp(String.raw`(?:\b(?:ba|z|da|k)?sh\s+(?:-\w+\s+)*|\b(?:python[0-9.]*|node|perl|ruby)\s+|\bsource\s+|\bchmod\s+\+x\s+|(?:^|[;&|]\s*))["']?${escaped}(?=["'\s;&|]|$)`, 'm');
+    if (run.test(after)) return { index: match.index, target };
+  }
+  return null;
+}
 
 function excerpt(line) {
   const visible = line.replace(/[​-‏‪-‮⁠-⁩﻿­]/g, '␣')
@@ -61,10 +115,20 @@ function scanText({ rel, text, isDoc, isCode, push }) {
       if (rule.pattern.test(raw)) push({ ruleId: rule.id, severity: rule.severity, file: rel, line: number, excerpt: excerpt(raw), message: rule.message });
     }
     const normalized = normalizeForMatching(raw);
+    const deobfuscated = shellDeobfuscate(normalized);
+    if (hasMixedScriptWord(raw.normalize('NFKC'))) {
+      push({ ruleId: 'mixed-script-word', severity: 'high', file: rel, line: number, excerpt: excerpt(raw), message: 'A word mixes letters from different alphabets, a way to disguise text from people and scanners.' });
+    }
+    for (const decoded of decodeBase64Runs(normalized)) {
+      const payload = LINE_RULES.find((rule) => rule.severity === 'critical' && decoded.split('\n').some((part) => rule.pattern.test(shellDeobfuscate(normalizeForMatching(part)))));
+      if (payload) push({ ruleId: 'encoded-payload', severity: 'critical', file: rel, line: number, excerpt: excerpt(decoded), message: `Base64 text decodes to something dangerous (${payload.id}).` });
+    }
     for (const rule of LINE_RULES) {
       if (rule.scope === 'code' && !isCode) continue;
       if (rule.scope === 'docs' && !isDoc) continue;
-      if (!rule.pattern.test(normalized)) continue;
+      const hit = [...windows(normalized)].some((w) => rule.pattern.test(w))
+        || (rule.executable && [...windows(deobfuscated)].some((w) => rule.pattern.test(w)));
+      if (!hit) continue;
       // A comment can't execute, so rules about execution weaken there. Rules about instructions
       // don't: a comment is exactly where text aimed at the model would hide.
       const inert = isCode && rule.executable && CODE_COMMENT.test(normalized);
@@ -86,6 +150,12 @@ function scanText({ rel, text, isDoc, isCode, push }) {
     if (blob && !/data:(?:image|font)\//.test(normalized) && !/\b(?:sha(?:1|256|384|512)|integrity)\b/i.test(normalized)) {
       push({ ruleId: 'encoded-blob', severity: 'high', file: rel, line: number, excerpt: `${blob[0].slice(0, 40)}… (${blob[0].length} chars)`, message: 'Long encoded blob: the content cannot be reviewed as written.' });
     }
+  }
+
+  const chained = findDownloadThenRun(text);
+  if (chained) {
+    const line = text.slice(0, chained.index).split('\n').length;
+    push({ ruleId: 'download-then-run', severity: 'high', file: rel, line, excerpt: excerpt(chained.target), message: 'Downloads or decodes a file and later runs it.' });
   }
 
   if (isDoc) {
@@ -126,11 +196,17 @@ function scanText({ rel, text, isDoc, isCode, push }) {
 }
 
 function scanSkillManifest({ rel, text, push, context }) {
-  const { data, hasFrontmatter } = parseFrontmatter(text);
+  const { data, hasFrontmatter, unparsed } = parseFrontmatter(text);
   const skillName = data.name || basename(dirname(rel)) || '';
   if (!hasFrontmatter) {
     push({ ruleId: 'no-frontmatter', severity: 'medium', file: rel, line: 1, excerpt: '', message: 'SKILL.md has no frontmatter, so it does not follow the Agent Skills spec.' });
     return;
+  }
+  if (unparsed?.length) {
+    push({ ruleId: 'unparsed-frontmatter', severity: 'high', file: rel, line: 1, excerpt: sanitizeText(unparsed[0], 120), message: 'Frontmatter uses YAML this scanner does not read, so settings could be hiding in it.' });
+  }
+  if (typeof data.name === 'string' && BUILTIN_COMMANDS.has(data.name)) {
+    push({ ruleId: 'shadows-builtin', severity: 'medium', file: rel, line: 2, excerpt: data.name, message: 'Name matches a built-in Claude Code command, which it could take the place of.' });
   }
   if (data.name && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(data.name)) {
     const nonAscii = /[^\u0000-\u007F]/.test(data.name);
@@ -182,10 +258,13 @@ function scanPluginSurface({ rel, text, push }) {
     push({ ruleId: 'plugin-monitor', severity: 'high', file: rel, line: 1, excerpt: '', message: 'Background monitors can start automatically and run outside the sandbox.' });
   } else if (/(?:^|\/)\.claude\/settings(?:\.local)?\.json$/.test(rel) || (name === 'settings.json' && !rel.includes('/'))) {
     push({ ruleId: 'bundled-settings', severity: 'high', file: rel, line: 1, excerpt: '', message: 'Ships Claude Code settings that could alter permissions.' });
-  } else if (name === 'package.json' && /"(?:pre|post)?install"\s*:/.test(text)) {
+  } else if (name === 'package.json' && /"(?:(?:pre|post)?install|prepare)"\s*:/.test(text)) {
     push({ ruleId: 'install-script', severity: 'high', file: rel, line: 1, excerpt: '', message: 'package.json runs code automatically during npm install.' });
   } else if (name === 'setup.py') {
     push({ ruleId: 'install-script', severity: 'medium', file: rel, line: 1, excerpt: '', message: 'setup.py runs code when the package is installed.' });
+  }
+  if (AGENT_CONFIG_FILE.test(rel) && !/(?:^|\/)\.claude\/settings(?:\.local)?\.json$/.test(rel)) {
+    push({ ruleId: 'nested-agent-config', severity: 'high', file: rel, line: 1, excerpt: '', message: 'Ships a file agents load automatically as instructions when working in that folder.' });
   }
   if (rel.startsWith('bin/')) {
     push({ ruleId: 'plugin-bin', severity: 'medium', file: rel, line: 1, excerpt: '', message: 'Added to the PATH of Claude\'s shell while the plugin is enabled.' });
@@ -227,6 +306,11 @@ export function scanDirectory(root, context = {}) {
     findings.push(finding);
   };
   for (const f of context.fetchFindings ?? []) push(f);
+
+  // Links are invisible to the hash and to the reader, so one appearing here is never innocent.
+  for (const link of listLinks(root)) {
+    push({ ruleId: 'symlink', severity: 'critical', file: relative(root, link).split(sep).join('/'), line: 0, excerpt: '', message: 'Contains a symbolic link, which can point outside the skill folder.' });
+  }
 
   const files = listFilesRecursive(root);
   const stats = { files: files.length, bytes: 0, code: 0, docs: 0, other: 0, opaque: 0 };

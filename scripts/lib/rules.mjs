@@ -25,7 +25,7 @@ const RAW = [
     severity: 'critical',
     severityInDocs: 'high',
     executable: true,
-    pattern: /\b(?:curl|wget|fetch)\b[^\n|]*\|\s*(?:sudo\s+)?(?:ba|z|da|k)?sh\b|\b(?:curl|wget)\b[^\n|]*\|\s*(?:sudo\s+)?(?:python[0-9.]*|node|perl|ruby)\b/i,
+    pattern: /\b(?:curl|wget|fetch)\b[^\n|]*\|\s*(?:[^|\n]*\|\s*)*(?:sudo\s+(?:-\S+\s+)*)?(?:env\s+(?:\w+=\S*\s+)*)?(?:(?:\/usr)?(?:\/local)?\/s?bin\/)?(?:(?:ba|z|da|k|fi)?sh|python[0-9.]*|node|perl|ruby|php)\b/i,
     message: 'Downloads code and pipes it straight into an interpreter.',
   },
   {
@@ -56,7 +56,7 @@ const RAW = [
     severity: 'critical',
     severityInDocs: 'high',
     executable: true,
-    pattern: /\brm\s+-[a-z]*r[a-z]*f?[a-z]*\s+(?:--no-preserve-root\s+)?(?:\/(?:\s|$|\*)|~(?:\/?\s|\/?$|\/\*)|\$HOME\b)|\bformat\s+c:|\bdel\s+\/[sf]\s+[^\n]*\bc:\\/i,
+    pattern: /\brm\s+(?=[^\n]*(?:-[a-z]*r|--recursive))(?:-{1,2}[a-z-]+\s+)+(?:\/(?:\s|$|\*)|~(?:\/?\s|\/?$|\/\*)|\$HOME\b)|\bformat\s+c:|\b(?:del|erase)\s+\/[sfq]\s+[^\n]*\bc:\\|\b(?:rd|rmdir)\s+\/s\b[^\n]*\bc:\\|\bfind\s+(?:\/|~|\$HOME)\s+[^\n]*-delete\b|\bdd\s+[^\n]*\bof=\/dev\/(?:sd|hd|nvme|disk|vd|mmcblk)|\bmkfs(?:\.\w+)?\s+\/dev\/|\bchmod\s+-R\s+0?777\s+(?:\/|~|\$HOME)(?:\s|$)|:\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:|\bRemove-Item\b[^\n]*-Recurse[^\n]*(?:[A-Z]:\\|\$HOME|\$env:USERPROFILE|\s~)/i,
     message: 'Destructive command aimed at the root or home directory.',
   },
 
@@ -86,19 +86,19 @@ const RAW = [
   {
     id: 'exfil-endpoint',
     severity: 'critical',
-    pattern: /https?:\/\/(?:[\w-]+\.)*(?:webhook\.site|requestbin\.(?:com|net)|pipedream\.net|interact\.sh|oast\.(?:fun|live|me|site|online|pro)|burpcollaborator\.net|canarytokens\.com)\b|(?:discord(?:app)?\.com\/api\/webhooks\/|api\.telegram\.org\/bot)[\w$\{<]/i,
+    pattern: /https?:\/\/(?:[\w-]+\.)*(?:webhook\.site|webhook\.cool|requestbin\.(?:com|net)|requestcatcher\.com|hookbin\.com|beeceptor\.com|pipedream\.net|interact\.sh|oast\.(?:fun|live|me|site|online|pro)|burpcollaborator\.net|canarytokens\.com|dnslog\.cn|ceye\.io)\b|(?:discord(?:app)?\.com\/api\/webhooks\/|api\.telegram\.org\/bot)[\w$\{<]/i,
     message: 'Sends data to an endpoint commonly used to receive stolen data.',
   },
   {
     id: 'tunnel-endpoint',
     severity: 'high',
-    pattern: /https?:\/\/(?:[\w-]+\.)+(?:ngrok(?:-free)?\.(?:io|app|dev)|trycloudflare\.com)\b/i,
+    pattern: /https?:\/\/(?:[\w-]+\.)+(?:ngrok(?:-free)?\.(?:io|app|dev)|trycloudflare\.com|loca\.lt|localhost\.run|bore\.pub|pinggy\.(?:link|online))\b|\bssh\s+[^\n]*-R\s+[^\n]*\b(?:serveo\.net|localhost\.run|pinggy\.io)\b/i,
     message: 'Uses a temporary tunnel address, which can point at anyone\'s machine.',
   },
   {
     id: 'opaque-host',
     severity: 'high',
-    pattern: /https?:\/\/(?:bit\.ly|tinyurl\.com|t\.co|goo\.gl|is\.gd|cutt\.ly|rb\.gy|pastebin\.com|paste\.ee|glot\.io|rentry\.(?:co|org)|hastebin\.com|transfer\.sh|file\.io|anonfiles\.com|temp\.sh)\b/i,
+    pattern: /https?:\/\/(?:[\w-]+\.)*(?:bit\.ly|tinyurl\.com|t\.co|goo\.gl|is\.gd|cutt\.ly|rb\.gy|pastebin\.com|paste\.ee|glot\.io|rentry\.(?:co|org)|hastebin\.com|transfer\.sh|file\.io|anonfiles\.com|temp\.sh|0x0\.st|gofile\.io|catbox\.moe|tmpfiles\.org|filebin\.net|ix\.io|termbin\.com|sprunge\.us|dpaste\.(?:com|org)|oshi\.at|bashupload\.com|ghostbin\.\w+)\b/i,
     message: 'Link hides its destination (URL shortener, paste site or anonymous file host).',
   },
   {
@@ -116,7 +116,7 @@ const RAW = [
     tag: 'credential',
     tagInDocs: null,
     executable: true,
-    pattern: /(?:~|\$HOME|%USERPROFILE%|\/home\/\w+|\/Users\/\w+)[/\\]\.(?:ssh|aws|gnupg|kube|docker\/config|netrc|npmrc|pypirc|git-credentials)\b|\.claude[/\\]\.credentials|\bid_(?:rsa|ed25519|ecdsa)\b(?!\.pub)|\.aws\/credentials\b|\bLogin Data\b|\blogins\.json\b|\bwallet\.dat\b|\bmetamask\b|\bKeychains?\/|\bsecurity\s+find-generic-password\b/i,
+    pattern: /(?:~|\$HOME|%USERPROFILE%|\/home\/\w+|\/Users\/\w+)[/\\]\.(?:ssh|aws|gnupg|kube|docker\/config|netrc|npmrc|pypirc|git-credentials|bash_history|zsh_history)\b|\.claude[/\\]\.credentials|\bid_(?:rsa|ed25519|ecdsa)\b(?!\.pub)|\.aws\/credentials\b|\bLogin Data\b|\blogins\.json\b|\bwallet\.dat\b|\bmetamask\b|\bKeychains?\/|\bsecurity\s+(?:find-generic-password|find-internet-password|dump-keychain)\b|\/etc\/(?:shadow|sudoers)\b|(?:Chrome|Chromium|Firefox|Edge|Brave)[^\n]{0,60}[/\\](?:Cookies|Local State)\b|\bgh\s+auth\s+token\b/i,
     message: 'Touches credential, key or wallet locations.',
   },
   {
@@ -124,7 +124,7 @@ const RAW = [
     severity: 'high',
     tag: 'credential',
     scope: 'docs',
-    pattern: /\b(?:read|cat|open|copy|send|upload|post|include|attach|exfiltrate|leia|copie|envie|inclua)\b[^\n]{0,60}(?:~|\$HOME|%USERPROFILE%)[/\\]\.(?:ssh|aws|gnupg|kube|netrc|npmrc|pypirc|git-credentials)\b|\b(?:read|cat|send|upload|post|include|attach|exfiltrate|leia|envie)\b[^\n]{0,40}\b(?:private\s+keys?|id_rsa|id_ed25519|\.aws\/credentials|\.claude[/\\]\.credentials|wallet\.dat|chaves?\s+privadas?)\b/i,
+    pattern: /\b(?:read|cat|open|copy|send|upload|post|include|attach|exfiltrate|leia|copie|envie|inclua)\b[^\n]{0,60}(?:~|\$HOME|%USERPROFILE%)[/\\]\.(?:ssh|aws|gnupg|kube|netrc|npmrc|pypirc|git-credentials|bash_history|zsh_history)\b|\b(?:read|cat|send|upload|post|include|attach|exfiltrate|leia|envie)\b[^\n]{0,40}\b(?:private\s+keys?|id_rsa|id_ed25519|\.aws\/credentials|\.claude[/\\]\.credentials|wallet\.dat|chaves?\s+privadas?|keychain)\b|\b(?:read|cat|cp|copy)\b[^\n]{0,60}(?:\/etc\/shadow|\/etc\/sudoers|[/\\](?:Cookies|Local State|Login Data)\b)|\bsecurity\s+dump-keychain\b|\b(?:read|cat|open|leia)\b[^\n]{0,30}\.env\b[^\n]{0,60}\b(?:include|send|upload|post|attach|share|summary|inclua|envie|resumo)\b|\b(?:send|upload|post|exfiltrate|envie)\b[^\n]{0,40}\.env\b/i,
     message: 'Instructs the agent to read or send credentials or private keys.',
   },
   {
@@ -150,7 +150,7 @@ const RAW = [
   {
     id: 'instruction-override',
     severity: 'high',
-    pattern: /\b(?:ignore|disregard|forget|override)\b[^\n]{0,30}\b(?:previous|prior|above|earlier|system|all(?:\s+other)?)\b[^\n]{0,20}\b(?:instructions?|prompts?|rules?|guidelines?)\b|\bignore\s+(?:as\s+)?instru[cç][oõ]es\s+anteriores\b|\byour\s+new\s+(?:instructions|role|goal)\b|\bfrom\s+now\s+on,?\s+you\s+(?:are|must)\b|\byou\s+are\s+no\s+longer\b/i,
+    pattern: /\b(?:ignore|disregard|forget|override)\b[^\n]{0,30}\b(?:previous|prior|above|earlier|system|all(?:\s+other)?)\b[^\n]{0,20}\b(?:instructions?|prompts?|rules?|guidelines?)\b|\b(?:ignore|desconsidere|esque[cç]a|ignora|olvida)\b[^\n]{0,20}\b(?:instru[cç][oõ]es|regras|instrucciones|reglas)\s+(?:anteriores|previas)\b|\byour\s+new\s+(?:instructions|role|goal)\b|\bfrom\s+now\s+on,?\s+you\s+(?:are|must)\b|\byou\s+are\s+no\s+longer\b|\byou\s+are\s+now\s+(?:in\s+)?(?:developer\s+mode|dan\b|jailbr|unrestricted|god\s+mode)/i,
     message: 'Tries to override the agent\'s existing instructions.',
   },
   {
@@ -192,8 +192,157 @@ const RAW = [
   {
     id: 'global-package-install',
     severity: 'medium',
-    pattern: /\bnpm\s+(?:i|install)\s+(?:-g|--global)\b|\bpip3?\s+install\s+(?!-r\b|-e\b|\.)(?:--user\s+)?[a-z0-9_.-]+|\bbrew\s+install\b|\bnpx\s+(?:-y|--yes)\s+\S+@latest\b/i,
+    pattern: /\bnpm\s+(?:i|install)\s+(?:-g|--global)\b|\bpip3?\s+install\s+(?!-r\b|-e\b|\.)(?:--user\s+)?[a-z0-9_.-]+|\bbrew\s+install\b|\bnpx\s+(?:-y|--yes)\s+\S+/i,
     message: 'Installs third-party packages on the user\'s machine; check that the names are genuine.',
+  },
+  // --- Added after probing the scanner with real attack techniques ---------------------------
+  {
+    id: 'remote-script-exec',
+    severity: 'critical',
+    severityInDocs: 'high',
+    executable: true,
+    pattern: /\b(?:ba|z|da|k)?sh\s+(?:-\w+\s+)*["']?\$\(\s*(?:curl|wget)\b|\b(?:ba|z|da|k)?sh\s+(?:-\w+\s+)*<\(\s*(?:curl|wget)\b|(?:\bsource|(?:^|[;&|]\s*)\.)\s+<\(\s*(?:curl|wget)\b|\beval\s+["']?(?:\$\(|\x60)\s*(?:curl|wget)\b|\b(?:python[0-9.]*|node|perl|ruby)\s+-[ce]\s+["']?\$\(\s*(?:curl|wget)\b/i,
+    message: 'Downloads a script and runs it in a single command.',
+  },
+  {
+    id: 'download-then-run',
+    severity: 'high',
+    executable: true,
+    pattern: /\b(?:curl|wget)\b[^\n]*(?:&&|;)[^\n]*(?:\b(?:ba|z)?sh\s+\S|\bchmod\s+\+x\b|(?:&&|;)\s*\.?\/\S)|\bgit\s+clone\b[^\n]*&&[^\n]*\b(?:ba|z)?sh\s+\S/i,
+    message: 'Downloads something and then runs it.',
+  },
+  {
+    id: 'remote-code-eval',
+    severity: 'critical',
+    severityInDocs: 'high',
+    executable: true,
+    pattern: /\b(?:exec|eval)\s*\(\s*(?:urllib\.request\.urlopen|urlopen|requests\.(?:get|post))\b|\beval\s*\(\s*(?:await\s*)?\(?\s*(?:await\s+)?(?:fetch|axios)\b|\beval\s*\(\s*String\.fromCharCode\b|\b(?:exec|eval)\s*\(\s*["'](?:\\x[0-9a-f]{2}){4,}/i,
+    message: 'Fetches or decodes code at runtime and executes it.',
+  },
+  {
+    id: 'reverse-shell',
+    severity: 'critical',
+    severityInDocs: 'high',
+    executable: true,
+    pattern: /\/dev\/(?:tcp|udp)\/[^\s/]+\/\d+|\bn(?:c|cat)\b[^\n]*\s-[a-z]*[ec]\s+\S*(?:sh|cmd(?:\.exe)?)\b|\bmkfifo\b[^\n]*\b(?:nc|ncat|telnet|openssl)\b|\bsocat\b[^\n]*\bEXEC:|\bpty\.spawn\s*\(\s*["'](?:\/bin\/)?(?:ba)?sh/i,
+    message: 'Opens a remote shell on this machine for someone else.',
+  },
+  {
+    id: 'secret-upload',
+    severity: 'critical',
+    severityInDocs: 'high',
+    executable: true,
+    tag: 'credential',
+    pattern: /\bcurl\b[^\n]*(?:-F\s*\S*=?@|-d\s*@|--data(?:-binary|-raw|-urlencode)?\s*\S*@|-T\s*|--upload-file\s*)\S*(?:\.env\b|\.ssh|\.aws|id_rsa|id_ed25519|credentials|\.npmrc|\.netrc|secrets?\b)|\b(?:cat|tar|zip|base64|gpg)\b[^\n|]*(?:\.env\b|\.ssh|\.aws|id_rsa|credentials|\.npmrc|\.netrc)[^\n|]*\|\s*(?:[^|\n]*\|\s*)*(?:curl|wget|nc|ncat|socat|openssl)\b|\b(?:gh\s+auth\s+token|printenv|env)\s*\|\s*(?:[^|\n]*\|\s*)*(?:curl|wget|nc|ncat|socat)\b/i,
+    message: 'Sends secrets or credential files over the network.',
+  },
+  {
+    id: 'dns-exfil',
+    severity: 'critical',
+    severityInDocs: 'high',
+    executable: true,
+    pattern: /\b(?:nslookup|dig|host|ping)\b[^\n]*\$\(\s*(?:whoami|hostname|id|cat|base64|env|printenv|uname)\b/i,
+    message: 'Leaks data through a DNS lookup, which firewalls rarely inspect.',
+  },
+  {
+    id: 'chat-webhook',
+    severity: 'high',
+    pattern: /https?:\/\/hooks\.slack\.com\/services\/[\w$\{<]/i,
+    message: 'Posts to a chat webhook, which can carry data out of the machine.',
+  },
+  {
+    id: 'lolbin-download',
+    severity: 'critical',
+    severityInDocs: 'high',
+    executable: true,
+    pattern: /\bcertutil(?:\.exe)?\b[^\n]*-urlcache\b|\bbitsadmin(?:\.exe)?\b[^\n]*\/transfer\b|\bmshta(?:\.exe)?\s+["']?(?:https?:|javascript:|vbscript:)|\bregsvr32(?:\.exe)?\b[^\n]*\/i:\s*https?:|\brundll32(?:\.exe)?\s+javascript:/i,
+    message: 'Abuses a built-in Windows tool to download or run remote code.',
+  },
+  {
+    id: 'hidden-powershell',
+    severity: 'high',
+    executable: true,
+    pattern: /\b(?:powershell|pwsh)(?:\.exe)?\b[^\n]*\s-w(?:indowstyle)?\s+hidden\b/i,
+    message: 'Runs PowerShell in a hidden window.',
+  },
+  {
+    id: 'execution-policy-bypass',
+    severity: 'medium',
+    executable: true,
+    pattern: /\s-(?:ep|exec(?:utionpolicy)?)\s+bypass\b/i,
+    message: 'Turns off the PowerShell script execution policy.',
+  },
+  {
+    id: 'credential-phishing-dialog',
+    severity: 'critical',
+    severityInDocs: 'high',
+    executable: true,
+    pattern: /\bdisplay\s+dialog\b[^\n]*\bhidden\s+answer\b|\bGet-Credential\b[^\n]*\|\s*(?:[^|\n]*\|\s*)*(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\b/i,
+    message: 'Shows a fake dialog to capture the password of the user.',
+  },
+  {
+    id: 'osascript-shell',
+    severity: 'high',
+    executable: true,
+    pattern: /\bosascript\b[^\n]*\bdo\s+shell\s+script\b/i,
+    message: 'Uses AppleScript to run shell commands, which can also ask for administrator rights.',
+  },
+  {
+    id: 'cryptominer',
+    severity: 'critical',
+    severityInDocs: 'high',
+    executable: true,
+    pattern: /\bxmrig\b|\bstratum\+(?:tcp|ssl):\/\/|\b(?:minerd|cgminer|nbminer)\b/i,
+    message: 'Runs a cryptocurrency miner.',
+  },
+  {
+    id: 'privilege-tamper',
+    severity: 'critical',
+    severityInDocs: 'high',
+    executable: true,
+    pattern: /\bNOPASSWD\b|(?:>>?|tee(?:\s+-a)?)\s*\/etc\/(?:sudoers|passwd|shadow|hosts|ld\.so\.preload)\b/i,
+    message: 'Changes system files that control privileges or name resolution.',
+  },
+  {
+    id: 'git-hook-plant',
+    severity: 'high',
+    executable: true,
+    pattern: /(?:>>?|tee(?:\s+-a)?|cp\s+\S+|mv\s+\S+)\s*\S*\.git\/hooks\/|\bgit\s+config\b[^\n]*\bcore\.hooksPath\b/i,
+    message: 'Plants a Git hook, which later runs code on ordinary Git commands.',
+  },
+  {
+    id: 'registry-override',
+    severity: 'high',
+    executable: true,
+    pattern: /--(?:index-url|extra-index-url|registry)[=\s]+["']?https?:\/\/(?!(?:pypi\.org|registry\.npmjs\.org|registry\.yarnpkg\.com|localhost|127\.0\.0\.1)\b)/i,
+    message: 'Installs packages from a non-standard registry, which can serve look-alike malware.',
+  },
+  {
+    id: 'obfuscated-string',
+    severity: 'high',
+    scope: 'code',
+    executable: true,
+    pattern: /(?:\\x[0-9a-f]{2}){12,}|(?:\bchr\(\d+\)\s*\+\s*){6,}|\bString\.fromCharCode\(\s*(?:\d+\s*,\s*){8,}/i,
+    message: 'Builds a string character by character, which hides what the code really does.',
+  },
+  {
+    id: 'model-control-token',
+    severity: 'high',
+    pattern: /<\|im_(?:start|end)\|>|<\|(?:system|endoftext)\|>|\[\/?INST\]|<<\/?SYS>>/,
+    message: 'Contains tokens that imitate the structure of a model conversation.',
+  },
+  {
+    id: 'fake-authority',
+    severity: 'high',
+    pattern: /\b(?:this\s+(?:message|instruction|note|update)|instructions?)\b[^\n]{0,30}\b(?:is|are|comes?)\s+from\s+anthropic\b|\boverrides?\s+your\s+(?:rules|instructions|guidelines|system\s+prompt)\b|\b(?:the\s+)?user\s+(?:has\s+)?already\s+(?:approved|authorized|authorised|consented|confirmed)\b|\bpre-?(?:authorized|authorised|approved)\s+by\s+(?:the\s+)?(?:user|anthropic|admin)\b/i,
+    message: 'Claims authority or prior approval that a file cannot have.',
+  },
+  {
+    id: 'auditor-manipulation',
+    severity: 'critical',
+    tag: 'concealment',
+    pattern: /\b(?:reviewers?|auditors?|scanners?|security\s+(?:tools?|checks?|review(?:er)?s?))\b[^\n]{0,60}\b(?:report|mark|classify|treat|consider|label)\b[^\n]{0,40}\b(?:benign|harmless|clean|trusted|verified|safe)\b|\b(?:do\s+not|don't|never)\s+flag\s+(?:this|it)\b|\bthis\s+(?:skill|file|package)\s+(?:is|has\s+been)\s+(?:verified|pre-?approved|audited)\s+(?:as\s+safe\s+)?by\s+(?:anthropic|security)\b/i,
+    message: 'Tries to talk a security reviewer into approving it.',
   },
 ];
 
@@ -206,8 +355,18 @@ export const HIDDEN_UNICODE = [
   { id: 'zero-width', severity: 'high', pattern: /[​‌⁠⁡-⁤­]|(?!^)﻿/, message: 'Zero-width characters can hide instructions or split keywords to dodge detection.' },
 ];
 
-export const EXECUTABLE_EXT = /\.(?:exe|dll|so|dylib|msi|scr|com|pif|jar|class|pyc|pyo|node|wasm|deb|rpm|apk|app|bin)$/i;
+export const EXECUTABLE_EXT = /\.(?:exe|dll|so|dylib|msi|msix|scr|com|pif|cpl|sys|drv|lnk|jar|class|pyc|pyo|node|wasm|deb|rpm|apk|ipa|app|appimage|bin)$/i;
 export const ARCHIVE_EXT = /\.(?:zip|rar|7z|tar|gz|tgz|bz2|xz|dmg|pkg|iso)$/i;
-export const CODE_EXT = /\.(?:sh|bash|zsh|fish|ps1|psm1|bat|cmd|py|js|mjs|cjs|ts|tsx|jsx|rb|pl|php|go|rs|lua)$/i;
-export const DOC_EXT = /\.(?:md|markdown|mdx|txt|rst)$/i;
+export const CODE_EXT = /(?:\.(?:sh|bash|zsh|fish|command|ps1|psm1|psd1|bat|cmd|vbs|vbe|wsf|hta|applescript|scpt|py|pyw|js|mjs|cjs|ts|tsx|jsx|rb|pl|php|go|rs|lua|java|kt|kts|cs|swift|r)|(?:^|\/)(?:Makefile|Dockerfile|Justfile|Rakefile|Containerfile))$/i;
+export const DOC_EXT = /\.(?:md|markdown|mdx|txt|rst|html?|adoc)$/i;
 export const MEDIA_EXT = /\.(?:png|jpe?g|gif|webp|ico|bmp|pdf|woff2?|ttf|otf|eot|mp[34]|wav|mov|docx|xlsx|pptx)$/i;
+
+// Files an agent loads as instructions just because they are in a folder it works in.
+export const AGENT_CONFIG_FILE = /(?:^|\/)(?:CLAUDE\.md|CLAUDE\.local\.md|AGENTS\.md|GEMINI\.md|\.cursorrules|\.windsurfrules|\.clinerules)$|(?:^|\/)\.(?:claude|cursor)\//i;
+
+// A skill with one of these names competes with a command the user already trusts.
+export const BUILTIN_COMMANDS = new Set(['add-dir', 'agents', 'bug', 'clear', 'code-review', 'commit', 'compact', 'config', 'cost', 'doctor', 'help', 'hooks', 'init', 'login', 'logout', 'loop', 'mcp', 'memory', 'model', 'permissions', 'plugin', 'pr-comments', 'release-notes', 'resume', 'review', 'schedule', 'security-review', 'simplify', 'status', 'terminal-setup', 'vim']);
+
+// Latin look-alikes from other alphabets, folded so a disguised "ignore" still matches. A small,
+// deliberate table: the letters that actually fool a reader, not the full Unicode list.
+export const CONFUSABLES = { а: 'a', в: 'b', с: 'c', е: 'e', һ: 'h', і: 'i', ј: 'j', к: 'k', м: 'm', н: 'h', о: 'o', р: 'p', г: 'r', ѕ: 's', т: 't', у: 'y', х: 'x', А: 'A', В: 'B', С: 'C', Е: 'E', Н: 'H', І: 'I', К: 'K', М: 'M', О: 'O', Р: 'P', Т: 'T', Х: 'X', ο: 'o', Ο: 'O', ν: 'v', Α: 'A', Β: 'B', Ε: 'E', Ι: 'I', Κ: 'K', Τ: 'T' };

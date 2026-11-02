@@ -4,6 +4,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isIgnored, parseGitignore } from './gitignore.mjs';
 import { readJson } from './util.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -120,8 +121,16 @@ function detectTechnologies(deps, files) {
 function envIsUnprotected(root, files) {
   const envFiles = files.filter((f) => /(?:^|\/)\.env(?:\.[\w-]+)?$/.test(f) && !/\.(?:example|sample|template|dist)$/.test(f));
   if (!envFiles.length) return false;
-  const ignore = readSmall(join(root, '.gitignore'));
-  return !/^\s*\/?\.env\b|^\s*\*\.env\b|^\s*\.env\*/m.test(ignore);
+  // Each folder's .gitignore applies to what's below it, and a deeper one overrides a shallower one.
+  return envFiles.some((file) => {
+    const parts = file.split('/');
+    let ignored = false;
+    for (let depth = 0; depth < parts.length; depth += 1) {
+      const folder = parts.slice(0, depth).join('/');
+      ignored = isIgnored(parts.slice(depth).join('/'), parseGitignore(readSmall(join(root, folder, '.gitignore'))), ignored);
+    }
+    return !ignored;
+  });
 }
 
 function computeSignals(root, files, deps, tech, languages) {

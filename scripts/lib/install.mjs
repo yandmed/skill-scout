@@ -6,7 +6,7 @@ import { join, resolve } from 'node:path';
 import { parseFrontmatter } from './frontmatter.mjs';
 import { commitSha, repoInfo, subtree } from './github.mjs';
 import { scanDirectory } from './scan.mjs';
-import { hashDirectory, isInside, readJson, UserError, writeJsonAtomic } from './util.mjs';
+import { hashDirectory, isInside, isReservedName, readJson, sanitizeText, UserError, writeJsonAtomic } from './util.mjs';
 import { loadRecord } from './vet.mjs';
 
 const NAME_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -17,7 +17,29 @@ function scopePaths(scope, projectDir) {
   return { claudeDir, skillsDir: join(claudeDir, 'skills'), lockPath: join(claudeDir, 'skill-scout.lock.json') };
 }
 
-const loadLock = (lockPath) => readJson(lockPath, { version: 1, skills: {} });
+const REPO_RE = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+
+/**
+ * The lockfile travels with the project, so a cloned repository can contain a hostile one. A
+ * corrupt file is an error rather than an empty list, because saving over it would silently
+ * forget what's installed. Entries with impossible names are ignored.
+ */
+function loadLock(lockPath) {
+  if (!existsSync(lockPath)) return { version: 1, skills: Object.create(null) };
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync(lockPath, 'utf8').replace(/^\uFEFF/, ''));
+  } catch {
+    throw new UserError(`The lockfile is not valid JSON: ${lockPath}. Fix or delete it.`, { code: 'lock-corrupt' });
+  }
+  const skills = Object.create(null);
+  if (parsed && typeof parsed.skills === 'object' && parsed.skills) {
+    for (const [name, entry] of Object.entries(parsed.skills)) {
+      if (NAME_RE.test(name) && entry && typeof entry === 'object' && REPO_RE.test(String(entry.repo))) skills[name] = entry;
+    }
+  }
+  return { version: parsed?.version ?? 1, skills };
+}
 
 /** Pure decision function: returns what stands between this record and an install. */
 export function evaluateGate(record, freshScan, acknowledged = []) {
@@ -61,7 +83,7 @@ export function installSkill({ record: id, scope, projectDir, acknowledged = [],
   if (!existsSync(manifestPath)) return { installed: false, problems: [{ code: 'no-manifest', message: 'No SKILL.md at the top of this candidate.' }] };
   const { data } = parseFrontmatter(readFileSync(manifestPath, 'utf8'));
   const name = data.name || record.path.split('/').pop() || record.repo.split('/')[1];
-  if (!NAME_RE.test(name) || name.length > 64) return { installed: false, problems: [{ code: 'bad-name', message: 'Skill name is not valid under the Agent Skills spec.' }] };
+  if (!NAME_RE.test(name) || name.length > 64 || isReservedName(name)) return { installed: false, problems: [{ code: 'bad-name', message: 'Skill name is not valid under the Agent Skills spec.' }] };
 
   const { claudeDir, skillsDir, lockPath } = scopePaths(scope, projectDir);
   const destination = join(skillsDir, name);
@@ -101,7 +123,7 @@ export function installSkill({ record: id, scope, projectDir, acknowledged = [],
     auditRisk: record.audit.risk,
     acknowledged: [...new Set(acknowledged)],
   };
-  writeJsonAtomic(lockPath, lock);
+  writeJsonAtomic(lockPath, { ...lock, skills: { ...lock.skills } });
   return { installed: true, name, scope, path: destination, entry: lock.skills[name] };
 }
 
@@ -152,11 +174,11 @@ export async function checkOutdated(projectDir) {
 export function removeManaged({ name, scope, projectDir }) {
   const { skillsDir, lockPath } = scopePaths(scope, projectDir);
   const lock = loadLock(lockPath);
-  if (!lock.skills[name]) throw new UserError(`"${name}" was not installed by Skill Scout, so it will not be removed.`, { code: 'not-managed' });
+  if (!lock.skills[name]) throw new UserError(`"${sanitizeText(name, 80)}" was not installed by Skill Scout, so it will not be removed.`, { code: 'not-managed' });
   const target = join(skillsDir, name);
   if (!isInside(skillsDir, target)) throw new UserError('Refusing to remove a path outside the skills folder.', { code: 'bad-name' });
   rmSync(target, { recursive: true, force: true });
   delete lock.skills[name];
-  writeJsonAtomic(lockPath, lock);
+  writeJsonAtomic(lockPath, { ...lock, skills: { ...lock.skills } });
   return { removed: true, name, scope };
 }
