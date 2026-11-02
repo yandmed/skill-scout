@@ -31,19 +31,18 @@ function fitScore(candidate, { terms, stack, explicit }) {
   const wanted = [...new Set(terms.flatMap(tokenize))];
   if (!wanted.length) return { score: 0, matched: [], mismatch: [] };
 
-  let hits = 0;
-  const matched = [];
-  for (const token of wanted) {
-    if (nameTokens.has(token)) {
-      hits += 2;
-      matched.push(token);
-    } else if (descTokens.has(token)) {
-      hits += 1;
-      matched.push(token);
-    }
-  }
-  // Coverage saturates: matching three strong terms is already a good fit, so long query lists don't dilute it.
-  let score = clamp((hits / Math.min(wanted.length * 2, 6)) * 45, 45);
+  const weight = (token) => (nameTokens.has(token) ? 2 : descTokens.has(token) ? 1 : 0);
+  const matched = wanted.filter((token) => weight(token) > 0);
+  // Judged query by query, since "security review" should beat one stray "review" in a long list of
+  // terms. The best single query sets the base, and each further query it answers adds a little.
+  const coverage = terms.map((term) => {
+    const tokens = [...new Set(tokenize(term))];
+    if (!tokens.length) return 0;
+    return tokens.reduce((sum, token) => sum + weight(token), 0) / (tokens.length * 2);
+  }).sort((a, b) => b - a);
+  const best = coverage[0] ?? 0;
+  const breadth = coverage.slice(1).filter((c) => c >= 0.5).length;
+  let score = clamp(best * 40 + Math.min(breadth, 3) * 2, 45);
 
   const about = candidateTechnologies(candidate);
   const explicitText = explicit.join(' ').toLowerCase();
@@ -63,6 +62,19 @@ function trustScore(candidate) {
     score += 15;
     reasons.push(`listed in ${candidate.officialSource}`);
   }
+  if (candidate.tier === 'vendor') {
+    score += 15;
+    reasons.push(`published by ${candidate.publisher}, who make this technology`);
+  } else if (candidate.tier === 'specialist') {
+    score += 10;
+    reasons.push(`published by ${candidate.publisher}, a known author`);
+  } else if (candidate.lists > 0) {
+    score += Math.min(candidate.lists, 3);
+    reasons.push(`named in ${candidate.lists} curated list${candidate.lists > 1 ? 's' : ''}`);
+  }
+  // Independent indexes agreeing is weak evidence of a real project, so it stays small.
+  const independent = (candidate.sources ?? []).length;
+  if (independent > 1) score += Math.min(independent - 1, 2);
   const stars = repo?.stars ?? candidate.signals?.stars ?? 0;
   score += logScale(stars, 5000) * 10;
   if (repo?.ownerType === 'Organization') {
@@ -76,6 +88,10 @@ function trustScore(candidate) {
   if (repo?.fork) {
     score -= 8;
     reasons.push('is a fork');
+  }
+  if (candidate.sameNameAs) {
+    score -= 10;
+    reasons.push(`same name as a skill by ${candidate.sameNameAs.publisher}, from a different repository`);
   }
   return { score: clamp(score, 30), stars, reasons };
 }

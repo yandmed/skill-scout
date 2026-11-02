@@ -2,7 +2,7 @@
 name: manage
 description: Lists, verifies, updates and removes the skills Skill Scout installed, and audits other local skills. Use when the user asks whether their installed skills are intact, up to date or trustworthy, or wants to update or remove one.
 argument-hint: "[verify | update | remove <name> | audit <folder>]"
-allowed-tools: Skill(skill-scout:audit) Skill(skill-scout:audit *) Bash(skill-scout list) Bash(skill-scout verify) Bash(skill-scout outdated) Bash(skill-scout scan *) Bash(skill-scout vet *) Bash(skill-scout record-audit *) PowerShell(skill-scout list) PowerShell(skill-scout verify) PowerShell(skill-scout outdated) PowerShell(skill-scout scan *) PowerShell(skill-scout vet *) PowerShell(skill-scout record-audit *)
+allowed-tools: AskUserQuestion Skill(skill-scout:audit) Skill(skill-scout:audit *) Bash(skill-scout list) Bash(skill-scout verify) Bash(skill-scout outdated) Bash(skill-scout scan *) Bash(skill-scout vet *) Bash(skill-scout record-audit *) PowerShell(skill-scout list) PowerShell(skill-scout verify) PowerShell(skill-scout outdated) PowerShell(skill-scout scan *) PowerShell(skill-scout vet *) PowerShell(skill-scout record-audit *)
 ---
 
 # Manage installed skills

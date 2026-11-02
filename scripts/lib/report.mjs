@@ -39,5 +39,12 @@ export function compactCandidate(c) {
     archived: c.repoMeta?.archived || undefined,
     official: c.officialSource,
     marketplace: c.marketplace,
+    publisher: c.publisher,
+    tier: c.tier,
+    copies: c.copies,
+    sameNameAs: c.sameNameAs,
+    resolved: c.resolved === false ? false : undefined,
+    registryQuality: c.registryQuality,
+    trustReasons: b.trustReasons?.length ? b.trustReasons : undefined,
   };
 }

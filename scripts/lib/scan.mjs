@@ -45,8 +45,8 @@ const normalizeForMatching = (line) => line
 export const shellDeobfuscate = (line) => line
   .replace(/\$\{IFS\}|\$IFS\b/g, ' ')
   .replace(/(?<=[A-Za-z0-9_-])(?:""|''|\\)(?=[A-Za-z0-9_-])/g, '')
-  .replace(/(?<=[A-Za-z0-9_-])"([A-Za-z0-9_-]{1,8})"(?=[A-Za-z0-9_-]|\s)/g, '$1')
-  .replace(/(?<=[A-Za-z0-9_-])'([A-Za-z0-9_-]{1,8})'(?=[A-Za-z0-9_-]|\s)/g, '$1');
+  .replace(/(?<=[A-Za-z0-9_-])"([A-Za-z0-9_-]{1,8})"(?=[A-Za-z0-9_-]|\s|$|[|;&])/g, '$1')
+  .replace(/(?<=[A-Za-z0-9_-])'([A-Za-z0-9_-]{1,8})'(?=[A-Za-z0-9_-]|\s|$|[|;&])/g, '$1');
 
 /** Matching is split into windows so a very long line can neither hide a payload nor stall a regex. */
 const WINDOW = 20000;

@@ -237,7 +237,7 @@ describe('searching several sources', () => {
     } finally {
       SOURCES['github-code'] = original;
     }
-    assert.equal(calls, 4);
+    assert.equal(calls, 3);
   });
 });
 

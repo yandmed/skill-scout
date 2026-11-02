@@ -176,7 +176,7 @@ const RAW = [
     id: 'persistence',
     severity: 'high',
     executable: true,
-    pattern: /(?:>>|tee\s+-a)\s*[^\n]*(?:\.bashrc|\.zshrc|\.profile|\.bash_profile|authorized_keys)\b|\bcrontab\s+-|\bLaunchAgents\b|\bschtasks\s+\/create\b|CurrentVersion\\Run\b|\bsystemctl\s+enable\b/i,
+    pattern: /(?:>>|tee\s+-a)\s*[^\n]*(?:\.bashrc|\.zshrc|\.profile|\.bash_profile|authorized_keys)\b|\bcrontab\s+-(?!l\b)|\bLaunchAgents\b|\bschtasks\s+\/create\b|CurrentVersion\\Run\b|\bsystemctl\s+enable\b/i,
     message: 'Installs something that survives reboots or new shells.',
   },
 
@@ -334,7 +334,7 @@ const RAW = [
   {
     id: 'fake-authority',
     severity: 'high',
-    pattern: /\b(?:this\s+(?:message|instruction|note|update)|instructions?)\b[^\n]{0,30}\b(?:is|are|comes?)\s+from\s+anthropic\b|\boverrides?\s+your\s+(?:rules|instructions|guidelines|system\s+prompt)\b|\b(?:the\s+)?user\s+(?:has\s+)?already\s+(?:approved|authorized|authorised|consented|confirmed)\b|\bpre-?(?:authorized|authorised|approved)\s+by\s+(?:the\s+)?(?:user|anthropic|admin)\b/i,
+    pattern: /\b(?:this\s+(?:message|instruction|note|update)|instructions?)\b[^\n]{0,30}\b(?:is|are|comes?)\s+from\s+anthropic\b|\boverrides?\s+your\s+(?:rules|instructions|guidelines|system\s+prompt)\b|(?<!\b(?:if|whether|once|when|unless|after)\s+(?:the\s+)?)\b(?:the\s+)?user\s+(?:has\s+)?already\s+(?:approved|authorized|authorised|consented|confirmed)\b|\bpre-?(?:authorized|authorised|approved)\s+by\s+(?:the\s+)?(?:user|anthropic|admin)\b/i,
     message: 'Claims authority or prior approval that a file cannot have.',
   },
   {

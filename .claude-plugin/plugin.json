@@ -1,11 +1,18 @@
 {
   "name": "skill-scout",
   "displayName": "Skill Scout",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Analyzes your project, finds the best Agent Skills on GitHub and public registries, vets them for security, and installs the ones you approve.",
   "author": {
     "name": "Skill Scout contributors"
   },
   "license": "MIT",
-  "keywords": ["skills", "discovery", "recommendation", "security", "supply-chain", "audit"]
+  "keywords": [
+    "skills",
+    "discovery",
+    "recommendation",
+    "security",
+    "supply-chain",
+    "audit"
+  ]
 }
