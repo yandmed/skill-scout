@@ -62,6 +62,9 @@ export function evaluateGate(record, freshScan, acknowledged = []) {
     problems.push({ code: 'audit-malicious', message: 'The AI audit judged this malicious. Skill Scout will not install it.' });
   } else if (record.audit.risk === 'suspicious' && !acks.has('audit-suspicious')) {
     problems.push({ code: 'needs-ack', message: 'The AI audit raised concerns the user must acknowledge.', rules: ['audit-suspicious'] });
+  } else if (record.audit.risk !== 'benign' && record.audit.risk !== 'suspicious') {
+    // Fail closed: record-audit only writes known values, so anything else means the file was altered.
+    problems.push({ code: 'audit-invalid', message: 'The recorded audit has an unknown result. Audit again.' });
   }
 
   const unacked = [...new Set(freshScan.findings.filter((f) => f.severity === 'high').map((f) => f.ruleId))].filter((rule) => !acks.has(rule));

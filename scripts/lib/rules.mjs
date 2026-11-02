@@ -25,7 +25,7 @@ const RAW = [
     severity: 'critical',
     severityInDocs: 'high',
     executable: true,
-    pattern: /\b(?:curl|wget|fetch)\b[^\n|]*\|\s*(?:[^|\n]*\|\s*)*(?:sudo\s+(?:-\S+\s+)*)?(?:env\s+(?:\w+=\S*\s+)*)?(?:(?:\/usr)?(?:\/local)?\/s?bin\/)?(?:(?:ba|z|da|k|fi)?sh|python[0-9.]*|node|perl|ruby|php)\b/i,
+    pattern: /\b(?:curl|wget|fetch)\b[^\n|]*\|(?:[^|\n]*\|)*\s*(?:sudo\s+(?:-\S+\s+)*)?(?:env\s+(?:\w+=\S*\s+)*)?(?:(?:\/usr)?(?:\/local)?\/s?bin\/)?(?:(?:ba|z|da|k|fi)?sh|python[0-9.]*|node|perl|ruby|php)\b/i,
     message: 'Downloads code and pipes it straight into an interpreter.',
   },
   {
@@ -233,7 +233,7 @@ const RAW = [
     severityInDocs: 'high',
     executable: true,
     tag: 'credential',
-    pattern: /\bcurl\b[^\n]*(?:-F\s*\S*=?@|-d\s*@|--data(?:-binary|-raw|-urlencode)?\s*\S*@|-T\s*|--upload-file\s*)\S*(?:\.env\b|\.ssh|\.aws|id_rsa|id_ed25519|credentials|\.npmrc|\.netrc|secrets?\b)|\b(?:cat|tar|zip|base64|gpg)\b[^\n|]*(?:\.env\b|\.ssh|\.aws|id_rsa|credentials|\.npmrc|\.netrc)[^\n|]*\|\s*(?:[^|\n]*\|\s*)*(?:curl|wget|nc|ncat|socat|openssl)\b|\b(?:gh\s+auth\s+token|printenv|env)\s*\|\s*(?:[^|\n]*\|\s*)*(?:curl|wget|nc|ncat|socat)\b/i,
+    pattern: /\bcurl\b[^\n]*(?:-F\s*\S*=?@|-d\s*@|--data(?:-binary|-raw|-urlencode)?\s*\S*@|-T\s*|--upload-file\s*)\S*(?:\.env\b|\.ssh|\.aws|id_rsa|id_ed25519|credentials|\.npmrc|\.netrc|secrets?\b)|\b(?:cat|tar|zip|base64|gpg)\b[^\n|]*(?:\.env\b|\.ssh|\.aws|id_rsa|credentials|\.npmrc|\.netrc)[^\n|]*\|(?:[^|\n]*\|)*\s*(?:curl|wget|nc|ncat|socat|openssl)\b|\b(?:gh\s+auth\s+token|printenv|env)\s*\|(?:[^|\n]*\|)*\s*(?:curl|wget|nc|ncat|socat)\b/i,
     message: 'Sends secrets or credential files over the network.',
   },
   {
@@ -277,7 +277,7 @@ const RAW = [
     severity: 'critical',
     severityInDocs: 'high',
     executable: true,
-    pattern: /\bdisplay\s+dialog\b[^\n]*\bhidden\s+answer\b|\bGet-Credential\b[^\n]*\|\s*(?:[^|\n]*\|\s*)*(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\b/i,
+    pattern: /\bdisplay\s+dialog\b[^\n]*\bhidden\s+answer\b|\bGet-Credential\b[^\n]*\|(?:[^|\n]*\|)*\s*(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\b/i,
     message: 'Shows a fake dialog to capture the password of the user.',
   },
   {
