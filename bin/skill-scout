@@ -1,0 +1,4 @@
+#!/bin/sh
+# Thin launcher. Claude Code adds this directory to PATH while the plugin is enabled,
+# so the plugin's skills can pre-approve exact read-only subcommands by prefix.
+exec node "$(dirname "$0")/../scripts/scout.mjs" "$@"

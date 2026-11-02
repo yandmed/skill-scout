@@ -1,0 +1,14 @@
+{
+  "name": "skill-scout",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Claude Code plugin: find, vet and install the right Agent Skills for your project.",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=20" },
+  "bin": { "skill-scout": "scripts/scout.mjs" },
+  "scripts": {
+    "test": "node --test",
+    "doctor": "node scripts/scout.mjs doctor"
+  }
+}

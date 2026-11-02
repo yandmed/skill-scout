@@ -1,0 +1,16 @@
+{
+  "name": "skill-scout",
+  "description": "Skill Scout: find, vet and install the right Agent Skills for your project.",
+  "owner": {
+    "name": "Skill Scout contributors"
+  },
+  "plugins": [
+    {
+      "name": "skill-scout",
+      "description": "Analyzes your project, finds the best Agent Skills on GitHub and public registries, vets them for security, and installs the ones you approve.",
+      "source": "./",
+      "category": "productivity",
+      "tags": ["skills", "discovery", "security"]
+    }
+  ]
+}

@@ -1,0 +1,172 @@
+// Downloads a candidate into quarantine at an immutable commit and scans it. Files are only ever
+// written as inert bytes, outside any directory Claude Code discovers skills from.
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { parseFrontmatter } from './frontmatter.mjs';
+import { commitSha, downloadRaw, fullTree, repoInfo, subtree } from './github.mjs';
+import { scanDirectory } from './scan.mjs';
+import { isValidRepo, isValidRepoPath } from './sources.mjs';
+import { dataDir, isInside, readJson, sanitizeText, slugify, UserError, writeJsonAtomic } from './util.mjs';
+
+const MAX_FILES = 300;
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
+const MAX_TOTAL_BYTES = 30 * 1024 * 1024;
+const CONCURRENCY = 8;
+
+/** ids look like `skill:owner/repo/path/to/skill` or `skill:owner/repo#name` (path still unknown). */
+export function parseCandidateId(id) {
+  const match = String(id).match(/^(skill|plugin):([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)(?:\/([^#]*))?(?:#([A-Za-z0-9_.-]+))?$/);
+  if (!match) throw new UserError(`Invalid candidate id: ${sanitizeText(id, 120)}`, { code: 'bad-id' });
+  const [, kind, repo, path = '', hint] = match;
+  if (!isValidRepo(repo) || !isValidRepoPath(path)) throw new UserError('Candidate id has an unsafe repository or path.', { code: 'bad-id' });
+  return { kind, repo, path, hint };
+}
+
+export const quarantineRoot = () => join(dataDir(), 'quarantine');
+export const recordDir = (id) => join(quarantineRoot(), slugify(id));
+export const recordPath = (id) => join(recordDir(id), 'record.json');
+
+export function loadRecord(id) {
+  const record = readJson(recordPath(id), null);
+  if (!record) throw new UserError(`No vetting record for ${sanitizeText(id, 120)}. Run \`vet\` first.`, { code: 'not-vetted' });
+  return record;
+}
+
+/** Registries such as skills.sh give only a name, so locate that skill's folder in the repository. */
+async function locateSkill(repo, sha, hint) {
+  const tree = await fullTree(repo, sha);
+  const manifests = tree.tree.filter((e) => e.type === 'blob' && /(?:^|\/)SKILL\.md$/.test(e.path)).map((e) => e.path);
+  const wanted = hint.toLowerCase();
+  const exact = manifests.filter((p) => p.split('/').slice(-2, -1)[0]?.toLowerCase() === wanted);
+  if (exact.length) return exact.sort((a, b) => a.length - b.length)[0].replace(/\/?SKILL\.md$/, '');
+  if (manifests.length === 1) return manifests[0].replace(/\/?SKILL\.md$/, '');
+  throw new UserError(`Could not find a skill named "${sanitizeText(hint, 60)}" in ${repo}.`, { code: 'path-not-found' });
+}
+
+async function downloadAll(repo, sha, basePath, entries, destination) {
+  const fetchFindings = [];
+  const blobs = [];
+  for (const entry of entries) {
+    if (entry.mode === '120000') {
+      // A symlink could point at ~/.ssh once installed, so it is never materialized.
+      fetchFindings.push({ ruleId: 'symlink', severity: 'critical', file: entry.path, line: 0, excerpt: '', message: 'Contains a symbolic link, which can point outside the skill folder.' });
+    } else if (entry.type === 'commit') {
+      fetchFindings.push({ ruleId: 'submodule', severity: 'high', file: entry.path, line: 0, excerpt: '', message: 'Git submodule: its code lives elsewhere and was not reviewed.' });
+    } else if (entry.type === 'blob') {
+      blobs.push(entry);
+    }
+  }
+  if (blobs.length > MAX_FILES) throw new UserError(`Candidate has ${blobs.length} files; the limit is ${MAX_FILES}.`, { code: 'too-many-files' });
+  const declaredTotal = blobs.reduce((sum, b) => sum + (b.size ?? 0), 0);
+  if (declaredTotal > MAX_TOTAL_BYTES) throw new UserError(`Candidate is ${declaredTotal} bytes; the limit is ${MAX_TOTAL_BYTES}.`, { code: 'too-large' });
+
+  let next = 0;
+  let total = 0;
+  const worker = async () => {
+    while (next < blobs.length) {
+      const entry = blobs[(next += 1) - 1];
+      const target = resolve(destination, entry.path);
+      if (!isInside(destination, target)) {
+        fetchFindings.push({ ruleId: 'path-traversal', severity: 'critical', file: sanitizeText(entry.path, 200), line: 0, excerpt: '', message: 'File path tries to escape the skill folder.' });
+        continue;
+      }
+      const remote = basePath ? `${basePath}/${entry.path}` : entry.path;
+      const bytes = await downloadRaw(repo, sha, remote, MAX_FILE_BYTES);
+      total += bytes.length;
+      if (total > MAX_TOTAL_BYTES) throw new UserError('Candidate exceeded the total download limit.', { code: 'too-large' });
+      mkdirSync(dirname(target), { recursive: true });
+      writeFileSync(target, bytes, { mode: 0o644 }); // Execute bits are dropped on purpose.
+    }
+  };
+  await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+  return fetchFindings;
+}
+
+function licenseFinding(meta, skillLicense) {
+  if (meta?.license && meta.license !== 'NOASSERTION') return [];
+  if (skillLicense) return [];
+  return [{ ruleId: 'no-license', severity: 'medium', file: '(repository)', line: 0, excerpt: '', message: 'No license was found, so by default you have no right to copy or reuse this code.' }];
+}
+
+export function summarizeRepo(info) {
+  if (!info) return null;
+  return {
+    stars: info.stargazers_count,
+    forks: info.forks_count,
+    openIssues: info.open_issues_count,
+    pushedAt: info.pushed_at,
+    createdAt: info.created_at,
+    archived: info.archived,
+    fork: info.fork,
+    license: info.license?.spdx_id ?? null,
+    ownerType: info.owner?.type,
+    defaultBranch: info.default_branch,
+  };
+}
+
+export async function vetCandidate(id) {
+  const parsed = parseCandidateId(id);
+  const info = await repoInfo(parsed.repo);
+  if (!info) throw new UserError(`Repository not found: ${parsed.repo}`, { code: 'repo-not-found' });
+  if (info.private) throw new UserError('Private repositories are not supported.', { code: 'private-repo' });
+
+  const sha = await commitSha(parsed.repo, info.default_branch);
+  // A plugin whose id has no path lives at the repository root; only skills need locating by name.
+  const path = parsed.path || (parsed.hint && parsed.kind === 'skill' ? await locateSkill(parsed.repo, sha, parsed.hint) : '');
+  const { treeSha, entries, truncated } = await subtree(parsed.repo, sha, path);
+  if (truncated) throw new UserError('Candidate is too large to list completely, so it cannot be reviewed.', { code: 'too-large' });
+
+  const root = recordDir(id);
+  const filesDir = join(root, 'files');
+  rmSync(root, { recursive: true, force: true });
+  mkdirSync(filesDir, { recursive: true });
+
+  const fetchFindings = await downloadAll(parsed.repo, sha, path, entries, filesDir);
+  const meta = summarizeRepo(info);
+  const manifestPath = join(filesDir, 'SKILL.md');
+  const skillLicense = existsSync(manifestPath) ? parseFrontmatter(readFileSync(manifestPath, 'utf8')).data.license : null;
+  const scan = scanDirectory(filesDir, {
+    repo: parsed.repo,
+    fetchFindings: [...fetchFindings, ...licenseFinding(meta, skillLicense)],
+  });
+
+  const record = {
+    id,
+    kind: parsed.kind,
+    repo: parsed.repo,
+    path,
+    commit: sha,
+    treeSha,
+    vettedAt: new Date().toISOString(),
+    repoMeta: meta,
+    filesDir,
+    scan,
+    audit: null,
+    sourceUrl: `https://github.com/${parsed.repo}/tree/${sha}${path ? `/${path}` : ''}`,
+  };
+  writeJsonAtomic(recordPath(id), record);
+  return record;
+}
+
+/** The AI auditor's result, reduced to enums and short codes so no free text reaches a shell. */
+export function recordAudit(id, risk, codes, coverage) {
+  if (!['benign', 'suspicious', 'malicious'].includes(risk)) throw new UserError('--risk must be benign, suspicious or malicious.', { code: 'bad-risk' });
+  if (!['complete', 'partial'].includes(coverage)) throw new UserError('--coverage must be complete or partial.', { code: 'bad-coverage' });
+  const clean = codes.flatMap((c) => String(c).split(',')).map((c) => c.trim()).filter((c) => c && c !== 'none');
+  for (const code of clean) {
+    if (!/^[a-z0-9-]{1,48}$/.test(code)) throw new UserError('Audit codes must be short kebab-case words.', { code: 'bad-codes' });
+  }
+  const record = loadRecord(id);
+  // "I couldn't look" must never read as "I found nothing". An auditor once returned benign after
+  // its file reads were denied, so this rule lives here, where no report can talk its way past it.
+  const incomplete = coverage === 'partial' && risk === 'benign';
+  record.audit = {
+    risk: incomplete ? 'suspicious' : risk,
+    codes: incomplete ? [...new Set([...clean, 'audit-incomplete'])] : clean,
+    coverage,
+    contentHash: record.scan.contentHash,
+    recordedAt: new Date().toISOString(),
+  };
+  writeJsonAtomic(recordPath(id), record);
+  return record;
+}
