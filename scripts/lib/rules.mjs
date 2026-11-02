@@ -13,7 +13,7 @@
 // `executable` marks rules about running code: they weaken on a comment-only line of a script.
 // `tagInDocs` overrides `tag` in docs: tags feed the correlation checks in scan.mjs, and merely
 // mentioning a credential path in documentation shouldn't count as touching it.
-// Every severity below was checked against real public skills; test/scan.test.mjs keeps both
+// Every severity below was checked against real public skills; tests/scan.test.mjs keeps both
 // the attack samples and the real false positives we found as regressions.
 
 export const SEVERITY_ORDER = ['info', 'low', 'medium', 'high', 'critical'];

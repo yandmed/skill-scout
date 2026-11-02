@@ -69,7 +69,7 @@ Skill Scout splits the work by what each side does well. **Code** handles anythi
 1. A skill's `allowed-tools` lasts only for the turn that invoked it, and subagents run in the background by default. When the main agent ended its turn, the auditors lost access to the files and `record-audit` lost its pre-approval.
 2. `context: fork` with `background: false` makes the turn wait, which solves that.
 3. Invoking a skill that has `allowed-tools` itself needs permission, hence `Skill(skill-scout:audit)` in the callers' `allowed-tools`.
-4. `agent:` must use the namespaced `skill-scout:skill-auditor`. With the bare name, Claude Code raises no error and **silently falls back to `general-purpose`**, which has shell access and uses the session's model. `test/plugin.test.mjs` guards this, and the audit prompt tells the agent to stop if it finds itself without its expected instructions and tools.
+4. `agent:` must use the namespaced `skill-scout:skill-auditor`. With the bare name, Claude Code raises no error and **silently falls back to `general-purpose`**, which has shell access and uses the session's model. `tests/plugin.test.mjs` guards this, and the audit prompt tells the agent to stop if it finds itself without its expected instructions and tools.
 
 **A partial audit can't be benign, and that's enforced in code.** In one run an auditor whose reads were denied still answered `benign`. `record-audit` now requires `--coverage` and converts partial + benign to suspicious.
 
@@ -85,4 +85,4 @@ Skill Scout splits the work by what each side does well. **Code** handles anythi
 
 **Not yet tested:** an interactive session (all live runs used `claude -p`, where nobody can answer a permission prompt, so the approval step itself hasn't been exercised by a person), installing from GitHub, macOS and Linux.
 
-To re-run the auditor samples, see `test/audit-samples/`.
+To re-run the auditor samples, see `tests/audit-samples/`.

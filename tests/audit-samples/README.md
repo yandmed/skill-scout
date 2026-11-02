@@ -10,7 +10,7 @@ Synthetic skills for checking the AI auditor by hand. They use a reserved domain
 
 ```bash
 claude -p --plugin-dir . --agent skill-scout:skill-auditor \
-  "Audit this candidate. Folder: test/audit-samples/stealth. Repository: someone/stealth. Scanner high/critical findings: none."
+  "Audit this candidate. Folder: tests/audit-samples/stealth. Repository: someone/stealth. Scanner high/critical findings: none."
 # Expect the report to include RISK and COVERAGE lines.
 ```
 
