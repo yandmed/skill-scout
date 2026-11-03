@@ -400,3 +400,26 @@ describe('second round of gaps', () => {
     }
   });
 });
+
+describe('third round of gaps', () => {
+  it('claiming to be from Anthropic elsewhere is high, and in their own repository is nothing', () => {
+    const files = { 'SKILL.md': '---\nname: a\ndescription: The official Anthropic helper.\n---\nx\n' };
+    assert.equal(severityOf(scan(files, { repo: 'someone/else' }), 'impersonation'), 'high');
+    assert.equal(severityOf(scan(files, { repo: 'anthropics/skills' }), 'impersonation'), undefined);
+  });
+  it('a description of exactly the listing limit is not long', () => {
+    assert.equal(severityOf(scan({ 'SKILL.md': `---\nname: a\ndescription: ${'a'.repeat(1536)}\n---\nx\n` }), 'long-description'), undefined);
+    assert.equal(severityOf(scan({ 'SKILL.md': `---\nname: a\ndescription: ${'a'.repeat(1537)}\n---\nx\n` }), 'long-description'), 'low');
+  });
+  it('a folder without SKILL.md is not an installed skill', () => assert.deepEqual(profile({ '.claude/skills/empty/notes.md': 'x' }).installed.skills.filter((s) => s.scope === 'project'), []));
+  it('a Vue or Svelte project counts as frontend with no known dependency', () => {
+    assert.equal(profile({ 'a.vue': 'x' }).signals.hasFrontend, true);
+    assert.equal(profile({ 'a.svelte': 'x' }).signals.hasFrontend, true);
+    assert.equal(profile({ 'a.py': 'x' }).signals.hasFrontend, false);
+  });
+  it('a curated list count is capped, and none adds nothing', () => {
+    const trust = (lists) => rankCandidates([makeCandidate({ name: 'test', repo: 'a/a', source: 's', lists })], { terms: ['test'], stack: [], explicit: [] })[0].scoreBreakdown.trust;
+    assert.equal(trust(9) - trust(0), 3);
+    assert.equal(trust(2) - trust(0), 2);
+  });
+});
