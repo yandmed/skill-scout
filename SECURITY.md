@@ -30,6 +30,27 @@ Skill Scout installs third-party instructions and code into an environment that 
 | Symlinks, path traversal, disguised binaries | Symlinks are never written, and any link out of the repository blocks; paths are validated; executables are detected by magic bytes; execute bits are dropped |
 | A tampered vetting record or lockfile | An unknown audit result fails closed; a record must match its id; the scan is redone at install; a corrupt lockfile is an error, and impossible entries are ignored |
 
+## Measured results
+
+Measured on the public [MaliciousSkillBench](https://github.com/protectskills/MaliciousSkillBench), using its source-disjoint test split, whose sources were not used to tune anything. Each sample is a single `SKILL.md` text, so bundled scripts aren't part of this measure.
+
+| | Malicious skills | Legitimate skills |
+|---|---|---|
+| Scanner alone flags (high or critical), all 1,380 samples | 7.5% of 839 | 9.2% of 541 |
+| Scanner + AI auditor flags, sample of 80 | 39 of 40 (97.5%) | 5 of 40 (12.5%) |
+| Scanner + AI auditor refuses outright, same sample | 22 of 40 (55%) | 0 of 40 |
+
+"Flags" means the user has to read the reason and decide. "Refuses" means it can't be installed.
+
+How to read this:
+
+- **The sample is small.** With 40 per class, the 95% confidence intervals are roughly 87% to 99.6% for flagged malicious, 5% to 26% for flagged legitimate, and 40% to 69% for refused malicious.
+- **Most samples in this split come from one source** (SkillHarm), so other kinds of attack may do worse.
+- **The auditor was calibrated once.** The first version flagged 36 of 40 malicious and 20 of 40 legitimate samples on another slice of this same split. Its instructions were then changed by looking at a separate validation split, and the numbers above come from samples not used before. The verdict codes of that first slice were seen, but not its texts.
+- **The scanner's first frozen run** on this split was 7.5% and 12.6%. The 9.2% comes after later fixes for false alarms found on real public skills, not on this split.
+- **False alarms on real skills:** on a fresh random sample of 297 public skills, 4 were falsely blocked (1.3%) before those fixes, which were then kept as regressions. There's no fresh measure after them yet.
+- **Other tools' published numbers used different splits, thresholds or settings,** so they aren't directly comparable.
+
 ## Design principles
 
 1. **Security is a gate, not a score.** It is never averaged with popularity.

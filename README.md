@@ -67,6 +67,8 @@ Tudo acontece dentro do próprio Claude Code, sem site nem conta nova. Ele pergu
 | Arquivos alterados depois da análise | A instalação é recusada, e é preciso analisar de novo. |
 | Atualização disponível | A nova versão passa por toda a verificação outra vez. |
 
+**Quanto ele detecta:** numa base pública de malware para skills, em fontes não usadas nos ajustes, o scanner mais o auditor de IA sinalizaram 39 de 40 amostras maliciosas e 5 de 40 legítimas, e recusaram de vez 22 das maliciosas e nenhuma legítima. A amostra é pequena e tem limites, explicados em [SECURITY.md](SECURITY.md#measured-results).
+
 **O que isso não garante:** nenhuma ferramenta prova que uma skill é segura, e por isso o Skill Scout nunca usa essa palavra. Ele diz o que verificou e o que encontrou. Leia os limites em [SECURITY.md](SECURITY.md).
 
 **Privacidade:** a análise roda na sua máquina, mas o trecho de código que o agente lê passa pelo modelo de IA da sua sessão do Claude Code, como em qualquer uso normal. Só termos técnicos genéricos saem para os registros públicos, nunca código, nomes de projeto ou segredos. O agente é instruído a não abrir arquivos `.env`, e a análise automática nunca os lê.

@@ -254,3 +254,13 @@ describe('scanner helpers', () => {
   const notChains = ['curl -o /tmp/a https://x\ncat /tmp/a', 'curl -o /tmp/a https://x\nbash /tmp/b', 'bash /tmp/a\ncurl -o /tmp/a https://x', 'curl https://x -o /dev/null\nbash /dev/null', 'curl -o data.json https://x\njq . data.json', 'curl -o /tmp/ab https://x\nbash /tmp/abc'];
   for (const text of notChains) it(`no chain in ${text.replace('\n', ' / ')}`, () => assert.equal(findDownloadThenRun(text), null));
 });
+
+describe('more gaps the mutation tool found', () => {
+  for (const [value, expected] of [['"a\'', '"a\''], ['\'a"', '\'a"'], ['"a', '"a'], ['a"', 'a"'], ['\'a', '\'a']]) {
+    it(`mismatched quotes stay as written: ${value}`, () => assert.equal(parseFrontmatter(`---\nname: ${value}\n---\n`).data.name, expected));
+  }
+  it('only terms that really matched are reported', () => {
+    const c = makeCandidate({ name: 'security-tool', description: 'x', repo: 'a/a', source: 's' });
+    assert.deepEqual(rankCandidates([c], { terms: ['security kubernetes'], stack: [], explicit: [] })[0].scoreBreakdown.matchedTerms, ['security']);
+  });
+});

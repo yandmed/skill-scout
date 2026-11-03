@@ -4,7 +4,7 @@ Ideas are ordered by value to the user. Nothing here is built yet.
 
 ## Next
 
-- **Measure detection properly.** Run the scanner and auditor against a labeled malicious dataset such as MalSkillBench, and publish the numbers. Today's validation shows few false alarms, but not a detection rate.
+- **Measure detection on more data.** The published numbers use 40 samples per class, mostly from one source. A larger run, with whole packages rather than single files, would narrow the uncertainty.
 - **Well-known indexes.** Some vendors publish `/.well-known/agent-skills/index.json` with content digests, which could confirm a download matches what the vendor published.
 - **Plugin evals.** Add `claude plugin eval` cases so that changes to the `SKILL.md` workflow are tested, not just the CLI.
 - **Better fit scoring.** Keyword overlap still ranks some generic matches too high. The agent corrects this when choosing finalists, but a better first pass would reduce cost.
