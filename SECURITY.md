@@ -48,7 +48,7 @@ How to read this:
 - **Most samples in this split come from one source** (SkillHarm), so other kinds of attack may do worse.
 - **The auditor was calibrated once.** The first version flagged 36 of 40 malicious and 20 of 40 legitimate samples on another slice of this same split. Its instructions were then changed by looking at a separate validation split, and the numbers above come from samples not used before. The verdict codes of that first slice were seen, but not its texts.
 - **The scanner's first frozen run** on this split was 7.5% and 12.6%. The 9.2% comes after later fixes for false alarms found on real public skills, not on this split.
-- **False alarms on real skills:** on a fresh random sample of 297 public skills, 4 were falsely blocked (1.3%) before those fixes, which were then kept as regressions. There's no fresh measure after them yet.
+- **False alarms on real skills:** each fresh random sample of public skills, drawn after the previous round of fixes, falsely blocked 4 of 297 (1.3%) and then 2 of 298 (0.7%). The causes were fixed and kept as regressions, and there's no fresh measure after that last round. These skills are mostly reputable but not verified clean.
 - **Other tools' published numbers used different splits, thresholds or settings,** so they aren't directly comparable.
 
 ## Design principles
