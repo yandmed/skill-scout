@@ -241,7 +241,7 @@ const RAW = [
     severity: 'critical',
     severityInDocs: 'high',
     executable: true,
-    pattern: /(?:^|[;&|(\x60"]\s*|\s{2,})(?:nslookup|dig|host|ping)\s[^\n]*\$\(\s*(?:whoami|hostname|id|cat|base64|env|printenv|uname)\b/i,
+    pattern: /(?:^|[;&|(\x60"]\s*|\s\s)(?:nslookup|dig|host|ping)\s[^\n]*\$\(\s*(?:whoami|hostname|id|cat|base64|env|printenv|uname)\b/i,
     message: 'Leaks data through a DNS lookup, which firewalls rarely inspect.',
   },
   {

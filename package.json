@@ -12,7 +12,7 @@
     "skill-scout": "scripts/scout.mjs"
   },
   "scripts": {
-    "test": "node --test",
+    "test": "node --test --test-timeout=180000",
     "doctor": "node scripts/scout.mjs doctor",
     "build:catalog": "node scripts/build-catalog.mjs"
   }
