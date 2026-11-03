@@ -48,6 +48,10 @@ export function parseFrontmatter(text) {
         ? items.map((l) => stripQuotes(l.replace(/^\s*-\s+/, '')))
         : nested.join('\n');
       i = j - 1;
+    } else if (nested.some((l) => l.trim()) && !/^["']/.test(value) && !value.startsWith('[') && !value.startsWith('{')) {
+      // A plain value may continue on indented lines. Its words matter: a scanner must read them too.
+      data[key] = [value, ...nested.map((l) => l.trim())].join(' ').trim();
+      i = j - 1;
     } else if (value.startsWith('[') && value.endsWith(']')) {
       data[key] = value.slice(1, -1).split(',').map(stripQuotes).filter(Boolean);
     } else {

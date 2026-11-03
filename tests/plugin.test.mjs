@@ -120,6 +120,7 @@ describe('talking with the user', () => {
   it('every isolated step stays out of dialogs, which do not work in a fork', () => {
     for (const name of ['audit', 'diagnose', 'research']) assert.ok(!manifest(`skills/${name}/SKILL.md`).data['allowed-tools'].includes('AskUserQuestion'));
   });
+  it('a full analysis must stop and ask before searching', () => assert.match(read('skills/scout/SKILL.md'), /you must stop here and ask before searching/));
   it('pasted links have a pre-approved way in', () => assert.ok(scout['allowed-tools'].includes('Bash(skill-scout resolve *)')));
 });
 

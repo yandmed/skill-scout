@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
 import { checkOutdated, installSkill, listManaged, removeManaged, verifyManaged } from '../scripts/lib/install.mjs';
-import { loadRecord, parseCandidateId, recordAudit, recordDir, vetCandidate } from '../scripts/lib/vet.mjs';
+import { classifySymlink, loadRecord, parseCandidateId, recordAudit, recordDir, vetCandidate } from '../scripts/lib/vet.mjs';
 import { fakeInternet, skillFile } from './mock-github.mjs';
 
 const home = mkdtempSync(join(tmpdir(), 'skill-scout-life-'));
@@ -112,7 +112,7 @@ describe('the happy path', () => {
 
 describe('hostile repository trees', () => {
   const entries = {
-    'a symbolic link': [{ path: 'link', type: 'blob', mode: '120000', sha: 'x', size: 10 }, 'symlink'],
+    'a symbolic link that cannot be read': [{ path: 'link', type: 'blob', mode: '120000', sha: 'x', size: 10 }, 'symlink'],
     'a git submodule': [{ path: 'vendored', type: 'commit', mode: '160000', sha: 'x' }, 'submodule'],
     'a hidden NTFS stream': [{ path: 'notes.md:hidden', type: 'blob', mode: '100644', sha: 'x', size: 1 }, 'unsafe-filename'],
     'a Windows device name': [{ path: 'nul', type: 'blob', mode: '100644', sha: 'x', size: 1 }, 'unsafe-filename'],
@@ -469,4 +469,20 @@ describe('candidate ids', () => {
   for (const [id, [kind, repo, path, hint]] of Object.entries(good)) it(`reads ${id}`, () => assert.deepEqual({ ...parseCandidateId(id) }, { kind, repo, path, hint }));
   const bad = ['', 'a/b', 'skill:', 'skill:a', 'other:a/b', 'SKILL:a/b', 'skill:../b', 'skill:a/..', 'skill:a/b/../c', 'skill:a/b/..', 'skill:a/b/c/../../..', 'skill:a/b/c;rm', 'skill:a/b/$(x)', 'skill:a/b/c\nd', 'skill:a/b#../x', 'skill:a/b#x y', 'skill:a/b\\c', ' skill:a/b', 'skill:a b/c', null, undefined, 5];
   for (const id of bad) it(`refuses ${JSON.stringify(id)}`, () => assert.throws(() => parseCandidateId(id), (e) => e.details.code === 'bad-id'));
+});
+
+describe('symbolic links are judged by where they point', () => {
+  const cases = [
+    ['a.md', '', 'b.md', 'internal-symlink'], ['refs/a.md', '', '../b.md', 'internal-symlink'], ['a', 'skills/x', 'b/c', 'internal-symlink'], ['a/b', 'skills/x', '../c', 'internal-symlink'],
+    ['refs', 'skills/x', '../../shared', 'external-symlink'], ['refs', 'a/b/c', '../../../shared', 'external-symlink'], ['a/b', 'skills/x', '../../y', 'external-symlink'],
+    ['a', '', '../outside', 'symlink'], ['a', 'skills/x', '../../../../etc/passwd', 'symlink'], ['a', '', '/etc/passwd', 'symlink'], ['a', '', '~/.ssh/id_rsa', 'symlink'], ['a', '', 'C:/Windows', 'symlink'], ['a', '', 'c:\\x', 'symlink'], ['a', '', '..\\..\\x', 'symlink'], ['a', '', '', 'symlink'], ['a', '', null, 'symlink'],
+  ];
+  for (const [entry, base, target, rule] of cases) {
+    it(`${base || '(root)'}/${entry} -> ${target}: ${rule}`, () => assert.equal(classifySymlink(entry, base, target).ruleId, rule));
+  }
+  it('only a link out of the repository blocks', () => {
+    assert.equal(classifySymlink('a', '', '/etc/passwd').severity, 'critical');
+    assert.equal(classifySymlink('r', 's/x', '../../y').severity, 'high');
+    assert.equal(classifySymlink('r', 's/x', 'y').severity, 'medium');
+  });
 });

@@ -51,6 +51,29 @@ async function locateSkill(repo, sha, hint) {
   throw new UserError(`Could not find a skill named "${sanitizeText(hint, 60)}" in ${repo}.`, { code: 'path-not-found' });
 }
 
+/** Git stores a link's target as text, so it can be judged without ever creating the link. */
+export function classifySymlink(entryPath, basePath, target) {
+  const finding = (ruleId, severity, message) => ({ ruleId, severity, file: sanitizeText(entryPath, 200), line: 0, excerpt: sanitizeText(target, 120), message });
+  const outside = finding('symlink', 'critical', 'Contains a symbolic link pointing out of the repository, for example at your private files.');
+  if (!target || target.startsWith('/') || target.startsWith('~') || /^[A-Za-z]:/.test(target) || target.includes('\\')) return outside;
+  const fromRepoRoot = [...basePath.split('/').filter(Boolean), ...entryPath.split('/').slice(0, -1)];
+  const depthOfSkill = basePath.split('/').filter(Boolean).length;
+  const walked = [...fromRepoRoot];
+  let leftSkill = false;
+  for (const part of target.split('/')) {
+    if (part === '' || part === '.') continue;
+    if (part === '..') {
+      if (!walked.length) return outside;
+      walked.pop();
+      if (walked.length < depthOfSkill) leftSkill = true;
+    } else {
+      walked.push(part);
+    }
+  }
+  if (leftSkill) return finding('external-symlink', 'high', 'Contains a link to elsewhere in its repository. That content was not reviewed and will not be copied, so the skill may be incomplete.');
+  return finding('internal-symlink', 'medium', 'Contains a link within its own folder. Links are never copied, so the skill may be incomplete.');
+}
+
 async function downloadAll(repo, sha, basePath, entries, destination) {
   const fetchFindings = [];
   const blobs = [];
@@ -69,8 +92,9 @@ async function downloadAll(repo, sha, basePath, entries, destination) {
     }
     if (entry.type === 'blob') seenPaths.set(folded, entry.path);
     if (entry.mode === '120000') {
-      // A symlink could point at ~/.ssh once installed, so it is never materialized.
-      fetchFindings.push({ ruleId: 'symlink', severity: 'critical', file: entry.path, line: 0, excerpt: '', message: 'Contains a symbolic link, which can point outside the skill folder.' });
+      // Never written to disk, whatever it points at. Only the severity depends on the target.
+      const target = await downloadRaw(repo, sha, basePath ? `${basePath}/${entry.path}` : entry.path, 4096).then((b) => b.toString('utf8').trim()).catch(() => null);
+      fetchFindings.push(classifySymlink(entry.path, basePath, target));
     } else if (entry.type === 'commit') {
       fetchFindings.push({ ruleId: 'submodule', severity: 'high', file: entry.path, line: 0, excerpt: '', message: 'Git submodule: its code lives elsewhere and was not reviewed.' });
     } else if (entry.type === 'blob') {

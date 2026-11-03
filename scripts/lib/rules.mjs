@@ -64,7 +64,7 @@ const RAW = [
   {
     id: 'password-protected-payload',
     severity: 'critical',
-    pattern: /\b(?:unzip|7z|7za|unrar)\b[^\n]*\s-p\s*\S+|\b(?:zip|archive|rar)\b[^\n]{0,60}\bpassword\s*(?:is|:|=)\s*\S+|\bsenha\s*(?:do|da)?\s*(?:zip|arquivo)?\s*[:=]\s*\S+/i,
+    pattern: /\bunzip\b[^\n]*\s-P\s*\S+|\b(?:7z|7za|unrar)\b[^\n]*\s-p\S+|\b(?:[Zz][Ii][Pp]|[Aa]rchive|[Rr][Aa][Rr])\b[^\n]{0,60}\b[Pp]assword\s*(?:is|:|=)\s*\S+|\b[Ss]enha\s*(?:do|da)?\s*(?:zip|arquivo)?\s*[:=]\s*\S+/,
     message: 'Password-protected archive: a classic way to get malware past scanners.',
   },
   {
@@ -116,7 +116,7 @@ const RAW = [
     tag: 'credential',
     tagInDocs: null,
     executable: true,
-    pattern: /(?:~|\$HOME|%USERPROFILE%|\/home\/\w+|\/Users\/\w+)[/\\]\.(?:ssh|aws|gnupg|kube|docker\/config|netrc|npmrc|pypirc|git-credentials|bash_history|zsh_history)\b|\.claude[/\\]\.credentials|\bid_(?:rsa|ed25519|ecdsa)\b(?!\.pub)|\.aws\/credentials\b|\bLogin Data\b|\blogins\.json\b|\bwallet\.dat\b|\bmetamask\b|\bKeychains?\/|\bsecurity\s+(?:find-generic-password|find-internet-password|dump-keychain)\b|\/etc\/(?:shadow|sudoers)\b|(?:Chrome|Chromium|Firefox|Edge|Brave)[^\n]{0,60}[/\\](?:Cookies|Local State)\b|\bgh\s+auth\s+token\b/i,
+    pattern: /(?:~|\$HOME|%USERPROFILE%|\/home\/\w+|\/Users\/\w+)[/\\]\.(?:ssh|aws|gnupg|kube|docker\/config|netrc|npmrc|pypirc|git-credentials|bash_history|zsh_history)(?![\w-])|\.claude[/\\]\.credentials|\bid_(?:rsa|ed25519|ecdsa)\b(?!\.pub)|\.aws\/credentials\b|\bLogin Data\b|\blogins\.json\b|\bwallet\.dat\b|\bmetamask\b|\bKeychains?\/|\bsecurity\s+(?:find-generic-password|find-internet-password|dump-keychain)\b|\/etc\/(?:shadow|sudoers)\b|(?:Chrome|Chromium|Firefox|Edge|Brave)[^\n]{0,60}[/\\](?:Cookies|Local State)\b|\bgh\s+auth\s+token\b/i,
     message: 'Touches credential, key or wallet locations.',
   },
   {
@@ -124,7 +124,7 @@ const RAW = [
     severity: 'high',
     tag: 'credential',
     scope: 'docs',
-    pattern: /\b(?:read|cat|open|copy|send|upload|post|include|attach|exfiltrate|leia|copie|envie|inclua)\b[^\n]{0,60}(?:~|\$HOME|%USERPROFILE%)[/\\]\.(?:ssh|aws|gnupg|kube|netrc|npmrc|pypirc|git-credentials|bash_history|zsh_history)\b|\b(?:read|cat|send|upload|post|include|attach|exfiltrate|leia|envie)\b[^\n]{0,40}\b(?:private\s+keys?|id_rsa|id_ed25519|\.aws\/credentials|\.claude[/\\]\.credentials|wallet\.dat|chaves?\s+privadas?|keychain)\b|\b(?:read|cat|cp|copy)\b[^\n]{0,60}(?:\/etc\/shadow|\/etc\/sudoers|[/\\](?:Cookies|Local State|Login Data)\b)|\bsecurity\s+dump-keychain\b|\b(?:read|cat|open|leia)\b[^\n]{0,30}\.env\b[^\n]{0,60}\b(?:include|send|upload|post|attach|share|summary|inclua|envie|resumo)\b|\b(?:send|upload|post|exfiltrate|envie)\b[^\n]{0,40}\.env\b/i,
+    pattern: /\b(?:read|cat|open|copy|send|upload|post|include|attach|exfiltrate|leia|copie|envie|inclua)\b[^\n]{0,60}(?:~|\$HOME|%USERPROFILE%)[/\\]\.(?:ssh|aws|gnupg|kube|netrc|npmrc|pypirc|git-credentials|bash_history|zsh_history)(?![\w-])(?![^\n]*\.pub\b)|\b(?:read|cat|send|upload|post|include|attach|exfiltrate|leia|envie)\b[^\n]{0,40}\b(?:private\s+keys?|id_rsa|id_ed25519|\.aws\/credentials|\.claude[/\\]\.credentials|wallet\.dat|chaves?\s+privadas?|keychain)\b(?!\.pub)|\b(?:read|cat|cp|copy)\b[^\n]{0,60}(?:\/etc\/shadow|\/etc\/sudoers|[/\\](?:Cookies|Local State|Login Data)\b)|\bsecurity\s+dump-keychain\b|\b(?:read|cat|open|leia)\b[^\n]{0,30}\.env\b[^\n]{0,60}\b(?:include|send|upload|post|attach|share|summary|inclua|envie|resumo)\b|\b(?:send|upload|post|exfiltrate|envie)\b[^\n]{0,40}\.env\b/i,
     message: 'Instructs the agent to read or send credentials or private keys.',
   },
   {
@@ -133,7 +133,7 @@ const RAW = [
     executable: true,
     tag: 'credential',
     scope: 'code',
-    pattern: /\bJSON\.stringify\(\s*process\.env\b|\bdict\(\s*os\.environ\b|\bjson\.dumps\(\s*(?:dict\()?os\.environ\b|\bprintenv\s*(?:\||>)|\benv\s*\|\s*(?:curl|nc|base64)\b|\bGet-ChildItem\s+env:/i,
+    pattern: /\bJSON\.stringify\(\s*process\.env\b|(?<![.\w])dict\(\s*os\.environ\b|\bjson\.dumps\(\s*(?:dict\()?os\.environ\b|\bprintenv\s*(?:\||>)|\benv\s*\|\s*(?:curl|nc|base64)\b|\bGet-ChildItem\s+env:/i,
     message: 'Collects the whole process environment, which usually contains secrets.',
   },
   {
@@ -157,7 +157,7 @@ const RAW = [
     id: 'concealment',
     severity: 'high',
     tag: 'concealment',
-    pattern: /\b(?:do\s*n[o']t|never|without)\s+(?:tell(?:ing)?|inform(?:ing)?|notify(?:ing)?|alert(?:ing)?|show(?:ing)?|reveal(?:ing)?|mention(?:ing)?)\s+(?:this\s+|it\s+|anything\s+)?(?:to\s+)?(?:the\s+)?(?:user|human|developer|operator)(?:\s*[.,;:)!]|\s*$|\s+(?:about|what\s+you|that\s+you|you\s+(?:did|have|are)))|\bwithout\s+asking\s+(?:the\s+)?(?:user|human)\s+(?:for\s+)?(?:permission|confirmation|approval|first)\b|\bhide\s+(?:this|it|the\s+\w+)\s+from\s+the\s+(?:user|human)\b|\bsilently\s+(?:send|upload|post|exfiltrate|copy|install|download|execute|run)\b|\bn[aã]o\s+(?:conte|informe|mencione|avise)\b[^\n]{0,20}\busu[aá]rio\b/i,
+    pattern: /\b(?:do\s*n[o']t|never|without)\s+(?:tell(?:ing)?|inform(?:ing)?|notify(?:ing)?|alert(?:ing)?|show(?:ing)?|reveal(?:ing)?|mention(?:ing)?)\s+(?:this\s+|it\s+|anything\s+)?(?:to\s+)?(?:the\s+)?(?:user|human|developer|operator)(?:\s*[.,;:)!]|\s*$|\s+(?:about|what\s+you|that\s+you|you\s+(?:did|have|are)))|\bwithout\s+asking\s+(?:the\s+)?(?:user|human)\s+(?:for\s+)?(?:permission|confirmation|approval|first)\b|\bhide\s+(?:this|it|the\s+\w+)\s+from\s+the\s+(?:user|human)\b|(?<!\bnot\s)\bsilently\s+(?:send|upload|post|exfiltrate|copy|install|download|execute|run)\b|\bn[aã]o\s+(?:conte|informe|mencione|avise)\b[^\n]{0,20}\busu[aá]rio\b/i,
     message: 'Tells the agent to act without the user knowing.',
   },
   {
@@ -169,7 +169,7 @@ const RAW = [
   {
     id: 'agent-config-tamper',
     severity: 'high',
-    pattern: /(?:>>?|tee(?:\s+-a)?|append|write|add|modify|edit|update|overwrite|echo)\b[^\n]{0,60}(?:\.claude[/\\](?:settings|hooks|agents|skills)|~[/\\]\.claude[/\\]CLAUDE\.md|\bMEMORY\.md\b|\.cursorrules\b)/i,
+    pattern: /(?:>>?|tee(?:\s+-a)?|append|write|add|modify|edit|update|overwrite)\b[^\n]{0,60}(?:\.claude[/\\](?:settings|hooks|agents|skills)|~[/\\]\.claude[/\\]CLAUDE\.md|\bMEMORY\.md\b|\.cursorrules\b)/i,
     message: 'Modifies the agent\'s own configuration or memory, which persists beyond this skill.',
   },
   {
@@ -241,7 +241,7 @@ const RAW = [
     severity: 'critical',
     severityInDocs: 'high',
     executable: true,
-    pattern: /\b(?:nslookup|dig|host|ping)\b[^\n]*\$\(\s*(?:whoami|hostname|id|cat|base64|env|printenv|uname)\b/i,
+    pattern: /(?:^|[;&|(\x60"]\s*|\s{2,})(?:nslookup|dig|host|ping)\s[^\n]*\$\(\s*(?:whoami|hostname|id|cat|base64|env|printenv|uname)\b/i,
     message: 'Leaks data through a DNS lookup, which firewalls rarely inspect.',
   },
   {
@@ -341,7 +341,7 @@ const RAW = [
     id: 'auditor-manipulation',
     severity: 'critical',
     tag: 'concealment',
-    pattern: /\b(?:reviewers?|auditors?|scanners?|security\s+(?:tools?|checks?|review(?:er)?s?))\b[^\n]{0,60}\b(?:report|mark|classify|treat|consider|label)\b[^\n]{0,40}\b(?:benign|harmless|clean|trusted|verified|safe)\b|\b(?:do\s+not|don't|never)\s+flag\s+(?:this|it)\b|\bthis\s+(?:skill|file|package)\s+(?:is|has\s+been)\s+(?:verified|pre-?approved|audited)\s+(?:as\s+safe\s+)?by\s+(?:anthropic|security)\b/i,
+    pattern: /\b(?:reviewers?|auditors?|scanners?|security\s+(?:tools?|checks?|review(?:er)?s?))\b[^\n]{0,60}\b(?:report|mark|classify|treat|consider|label)\b[^\n]{0,40}\b(?:benign|harmless|clean|trusted|verified|safe)\b|\b(?:do\s+not|don't|never)\s+flag\s+this\s+(?:skill|package|plugin|repository)\b|\bthis\s+(?:skill|file|package)\s+(?:is|has\s+been)\s+(?:verified|pre-?approved|audited)\s+(?:as\s+safe\s+)?by\s+(?:anthropic|security)\b/i,
     message: 'Tries to talk a security reviewer into approving it.',
   },
 ];

@@ -48,6 +48,15 @@ export const shellDeobfuscate = (line) => line
   .replace(/(?<=[A-Za-z0-9_-])"([A-Za-z0-9_-]{1,8})"(?=[A-Za-z0-9_-]|\s|$|[|;&])/g, '$1')
   .replace(/(?<=[A-Za-z0-9_-])'([A-Za-z0-9_-]{1,8})'(?=[A-Za-z0-9_-]|\s|$|[|;&])/g, '$1');
 
+// A Dockerfile runs inside a container build, and a data literal only describes a command, so
+// neither gets the "this will run on your machine" severity. A person still decides.
+const CONTAINER_FILE = /(?:^|\/)(?:Dockerfile|Containerfile)(?:\.[\w.-]+)?$/i;
+const DATA_LITERAL = /^\s*["'][\w.$-]+["']\s*:\s*["']/;
+// Signatures and certificates are long encoded text by nature, and they decode to nothing readable.
+const SIGNATURE_FILE = /\.(?:sig|asc|crt|cer|pem|pub)$/i;
+// Quoting an attack in order to warn about it is what careful skills do.
+const QUOTED_OVERRIDE = /["'\x60\u201C\u2018]\s*(?:ignore|disregard|forget|override)\b/i;
+
 /** Matching is split into windows so a very long line can neither hide a payload nor stall a regex. */
 const WINDOW = 20000;
 const OVERLAP = 1000;
@@ -133,6 +142,8 @@ function scanText({ rel, text, isDoc, isCode, push }) {
       // don't: a comment is exactly where text aimed at the model would hide.
       const inert = isCode && rule.executable && CODE_COMMENT.test(normalized);
       let severity = isDoc && rule.severityInDocs ? rule.severityInDocs : rule.severity;
+      if (rule.executable && severity === 'critical' && (CONTAINER_FILE.test(rel) || DATA_LITERAL.test(normalized))) severity = 'high';
+      if (rule.id === 'instruction-override' && QUOTED_OVERRIDE.test(normalized)) severity = 'medium';
       if (inert) severity = 'low';
       let tag = isDoc && 'tagInDocs' in rule ? rule.tagInDocs : rule.tag;
       if (inert) tag = undefined;
@@ -147,7 +158,7 @@ function scanText({ rel, text, isDoc, isCode, push }) {
       });
     }
     const blob = normalized.match(/(?<![A-Za-z0-9+/:,])[A-Za-z0-9+/]{240,}={0,2}/);
-    if (blob && !/data:(?:image|font)\//.test(normalized) && !/\b(?:sha(?:1|256|384|512)|integrity)\b/i.test(normalized)) {
+    if (blob && !SIGNATURE_FILE.test(rel) && !/data:(?:image|font)\//.test(normalized) && !/\b(?:sha(?:1|256|384|512)|integrity)\b/i.test(normalized)) {
       push({ ruleId: 'encoded-blob', severity: 'high', file: rel, line: number, excerpt: `${blob[0].slice(0, 40)}… (${blob[0].length} chars)`, message: 'Long encoded blob: the content cannot be reviewed as written.' });
     }
   }
@@ -173,7 +184,7 @@ function scanText({ rel, text, isDoc, isCode, push }) {
       }
     }
     const fenced = /^```!\s*$/m.test(text);
-    const inlineMatches = [...text.matchAll(/(?<![\\`])!`([^`\n]+)`/g)];
+    const inlineMatches = [...text.matchAll(/(?<![^\s(])!`([^`\n]+)`/g)];
     for (const match of inlineMatches) {
       const line = text.slice(0, match.index).split('\n').length;
       const networked = /\b(?:curl|wget|nc|iwr|irm|invoke-webrequest|ssh|scp)\b/i.test(match[1]);
@@ -218,7 +229,7 @@ function scanSkillManifest({ rel, text, push, context }) {
     if (String(data.description).length > 1536) {
       push({ ruleId: 'long-description', severity: 'low', file: rel, line: 1, excerpt: `${String(data.description).length} chars`, message: 'Description is over the 1,536 characters Claude Code keeps in the skill listing.' });
     }
-    if (/\b(?:always|every|all|any)\s+(?:use|invoke|activate|load|run|trigger)\b|\buse\s+(?:this\s+)?(?:skill\s+)?(?:for|on|in|at)\s+(?:all|every|any)\s+(?:task|request|message|prompt|conversation|session)s?\b|\b(?:always|must)\s+(?:be\s+)?(?:use|load|invoke|activate)d?\b(?:\s+this\s+skill)?\s+(?:first|before)/i.test(String(data.description))) {
+    if (/\balways\s+(?:use|invoke|activate|load|run|trigger)\s+(?:this\s+(?:skill\s+)?)?(?:(?:for|on|in|at|before)\s+)?(?:all|every|any|each|anything|first)\b|\buse\s+(?:this\s+)?(?:skill\s+)?(?:for|on|in|at)\s+(?:all|every|any)\s+(?:task|request|message|prompt|conversation|session)s?\b|\b(?:always|must)\s+(?:be\s+)?(?:use|load|invoke|activate)d?\b(?:\s+this\s+skill)?\s+(?:first|before)/i.test(String(data.description))) {
       push({ ruleId: 'trigger-hijack', severity: 'high', file: rel, line: 1, excerpt: sanitizeText(data.description, 160), message: 'Description tries to force activation on every task, which would keep its instructions always in play.' });
     }
   }

@@ -77,7 +77,7 @@ export function installSkill({ record: id, scope, projectDir, acknowledged = [],
   const record = loadRecord(id);
   const freshScan = scanDirectory(record.filesDir, {
     repo: record.repo,
-    fetchFindings: record.scan.findings.filter((f) => ['symlink', 'submodule', 'path-traversal', 'no-license'].includes(f.ruleId)),
+    fetchFindings: record.scan.findings.filter((f) => ['symlink', 'external-symlink', 'internal-symlink', 'submodule', 'unsafe-filename', 'case-collision', 'path-traversal', 'no-license'].includes(f.ruleId)),
   });
   const problems = evaluateGate(record, freshScan, acknowledged);
   if (problems.length) return { installed: false, problems };

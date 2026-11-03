@@ -40,7 +40,7 @@ If the project has source code, then invoke the `skill-scout:diagnose` skill thr
 
 Then show a short diagnosis: what the project is, then what it lacks, most important first, each with its evidence. Note what is already installed, so you never recommend a duplicate.
 
-If the user asked for something specific, focus on that, and mention other serious gaps in one line at most, and go straight to the search. If `$ARGUMENTS` is empty, ask with `AskUserQuestion` (`multiSelect`) which areas to look for skills in, offering the top needs as options, the most important first. An empty project needs a different question: what they plan to build.
+If the user asked for something specific, focus on that, and mention other serious gaps in one line at most, and go straight to the search. If `$ARGUMENTS` is empty, you must stop here and ask before searching: call `AskUserQuestion` (`multiSelect`) asking which areas to look for skills in, offering the top needs as options, the most important first. This is the user's moment to steer the work, so don't skip it even when the choice seems obvious. An empty project needs a different question: what they plan to build.
 
 ### 2. Search
 
@@ -100,7 +100,7 @@ Then let the user decide, with `AskUserQuestion` (`multiSelect`): one option per
 
 ### 6. Install what they approve
 
-For skills, ask for the scope with `AskUserQuestion` only if they haven't said: `project` is shared with the team through git, `user` is for all their projects. Default to `project`. Then run:
+For skills, if they haven't said where to install, ask with `AskUserQuestion`: `project` (Recommended) is shared with the team through git, `user` is for all their projects. Then run:
 
 ```
 skill-scout install --id ID --scope project
