@@ -17,6 +17,7 @@ const { flags } = parseArgs(process.argv.slice(2));
 const TARGETS = ['install.mjs', 'vet.mjs', 'scan.mjs', 'sources.mjs', 'rank.mjs', 'resolve.mjs', 'gitignore.mjs', 'frontmatter.mjs', 'util.mjs', 'analyze.mjs', 'report.mjs', 'github.mjs'];
 const WORKERS = Math.max(2, Math.min(8, cpus().length - 2));
 const TIMEOUT_MS = 180000;
+const PARTS = ['scripts', 'tests', 'data', 'skills', 'agents', 'bin', '.claude-plugin', 'package.json'];
 
 // Swaps that change behavior while keeping the program valid.
 const OPERATORS = [
@@ -44,7 +45,7 @@ function mutantsOf(file) {
 
 function runTests(dir, home) {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, ['--test', '--test-timeout=30000'], { cwd: dir, env: { ...process.env, SKILL_SCOUT_HOME: home, GH_TOKEN: 'fake' }, stdio: 'ignore' });
+    const child = spawn(process.execPath, ['--test', '--test-timeout=170000'], { cwd: dir, env: { ...process.env, SKILL_SCOUT_HOME: home, GH_TOKEN: 'fake' }, stdio: 'ignore' });
     const timer = setTimeout(() => {
       child.kill();
       resolve('timeout');
@@ -72,7 +73,7 @@ let next = 0;
 async function worker() {
   const dir = mkdtempSync(join(tmpdir(), 'skill-scout-mutant-'));
   const home = mkdtempSync(join(tmpdir(), 'skill-scout-mhome-'));
-  for (const part of ['scripts', 'tests', 'data', 'skills', 'agents', 'bin', '.claude-plugin', 'package.json']) cpSync(join(ROOT, part), join(dir, part), { recursive: true });
+  for (const part of PARTS) cpSync(join(ROOT, part), join(dir, part), { recursive: true });
   while (next < all.length) {
     const mutant = all[(next += 1) - 1];
     const target = join(dir, 'scripts', 'lib', mutant.file);
@@ -86,6 +87,23 @@ async function worker() {
   }
   rmSync(dir, { recursive: true, force: true });
   rmSync(home, { recursive: true, force: true });
+}
+// A suite that already fails, or that fails under load, would make every mutant look caught.
+{
+  const dirs = Array.from({ length: WORKERS }, () => mkdtempSync(join(tmpdir(), 'skill-scout-base-')));
+  const outcomes = await Promise.all(dirs.map(async (dir) => {
+    const home = mkdtempSync(join(tmpdir(), 'skill-scout-bhome-'));
+    for (const part of PARTS) cpSync(join(ROOT, part), join(dir, part), { recursive: true });
+    const outcome = await runTests(dir, home);
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(home, { recursive: true, force: true });
+    return outcome;
+  }));
+  if (outcomes.some((o) => o !== 'survived')) {
+    process.stderr.write(`Baseline failed under this load: ${outcomes.join(', ')}. Results would be meaningless.\n`);
+    process.exit(1);
+  }
+  process.stderr.write(`Baseline passed in all ${outcomes.length} parallel copies.\n`);
 }
 await Promise.all(Array.from({ length: WORKERS }, worker));
 

@@ -25,7 +25,7 @@ const RAW = [
     severity: 'critical',
     severityInDocs: 'high',
     executable: true,
-    pattern: /\b(?:curl|wget|fetch)\b[^\n|]*\|(?:[^|\n]*\|)*\s*(?:sudo\s+(?:-\S+\s+)*)?(?:env\s+(?:\w+=\S*\s+)*)?(?:(?:\/usr)?(?:\/local)?\/s?bin\/)?(?:(?:ba|z|da|k|fi)?sh|python[0-9.]*|node|perl|ruby|php)\b/i,
+    pattern: /\b(?:curl|wget|fetch)\b[^\n|]*\|(?:[^|\n]*\|)*\s*(?:sudo\s+(?:-\S+\s+)*)?(?:env\s+(?:\w+=\S*\s+)*)?(?:(?:\/usr)?(?:\/local)?\/s?bin\/)?(?:(?:ba|z|da|k|fi)?sh\b|(?:python[0-9.]*|node|perl|ruby|php)\b(?!\s+(?:-[a-zA-Z]*[ecmpn]\b|["'$./\w])))/i,
     message: 'Downloads code and pipes it straight into an interpreter.',
   },
   {

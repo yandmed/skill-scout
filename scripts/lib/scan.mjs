@@ -55,6 +55,10 @@ const DATA_LITERAL = /^\s*["'][\w.$-]+["']\s*:\s*["']/;
 // Signatures and certificates are long encoded text by nature, and they decode to nothing readable.
 const SIGNATURE_FILE = /\.(?:sig|asc|crt|cer|pem|pub)$/i;
 // Quoting an attack in order to warn about it is what careful skills do.
+// A line that prints a command shows it to a person; it doesn't run it.
+const PRINTS_TEXT = /^\s*(?:(?:echo|printf)\s+(?:-\w+\s+)*(["']).*\1|(?:print|console\.(?:log|error))\(\s*(["'\x60]).*\2\s*\)|Write-(?:Host|Output)\s+(["']).*\3)\s*(?:>&2|1>&2)?\s*;?\s*$/;
+// "Never do X without asking the user" and "don't show the token to the user" protect the user.
+const PROTECTIVE_CONCEALMENT = /\b(?:do\s+not|don't|never|must\s+not|should\s+not)\b[^\n]*\bwithout\s+asking\b|\b(?:do\s+not|don't|never)\s+(?:show|reveal|display)\b[^\n]{0,30}\b(?:user|human)\b[^\n]*\b(?:token|secret|key|password|credential)|\b(?:token|secret|key|password|credential)[^\n]*\b(?:do\s+not|don't|never)\s+(?:show|reveal|display)\b/i;
 const QUOTED_OVERRIDE = /["'\x60\u201C\u2018]\s*(?:ignore|disregard|forget|override)\b/i;
 
 /** Matching is split into windows so a very long line can neither hide a payload nor stall a regex. */
@@ -142,11 +146,15 @@ function scanText({ rel, text, isDoc, isCode, push }) {
       // don't: a comment is exactly where text aimed at the model would hide.
       const inert = isCode && rule.executable && CODE_COMMENT.test(normalized);
       let severity = isDoc && rule.severityInDocs ? rule.severityInDocs : rule.severity;
-      if (rule.executable && severity === 'critical' && (CONTAINER_FILE.test(rel) || DATA_LITERAL.test(normalized))) severity = 'high';
+      if (rule.executable && severity === 'critical' && (CONTAINER_FILE.test(rel) || DATA_LITERAL.test(normalized) || PRINTS_TEXT.test(normalized))) severity = 'high';
       if (rule.id === 'instruction-override' && QUOTED_OVERRIDE.test(normalized)) severity = 'medium';
       if (inert) severity = 'low';
       let tag = isDoc && 'tagInDocs' in rule ? rule.tagInDocs : rule.tag;
       if (inert) tag = undefined;
+      if (rule.id === 'concealment' && PROTECTIVE_CONCEALMENT.test(normalized)) {
+        severity = 'low';
+        tag = undefined;
+      }
       push({
         ruleId: rule.id,
         severity,
@@ -176,7 +184,7 @@ function scanText({ rel, text, isDoc, isCode, push }) {
       const line = text.slice(0, match.index).split('\n').length;
       // Templates often carry long, harmless comments, so only text addressing the model or
       // performing an action is treated as an attack; other long comments are just worth a look.
-      const aimedAtModel = /\b(?:assistant|claude|llm|language model|ai agent|system prompt|ignore|disregard|exfiltrate|curl|wget)\b|\b(?:send|upload|post)\b[^\n]{0,40}\bto\b|\bdo not (?:tell|inform|show)\b/i.test(inner);
+      const aimedAtModel = /\b(?:assistant|claude|llm|language model|ai agent|system prompt|disregard|exfiltrate|curl|wget)\b|\bignore\s+(?:all|any|the|previous|above|prior|these|your)\b|\b(?:send|upload|post)\b[^\n]{0,40}\bto\b|\bdo not (?:tell|inform|show)\b/i.test(inner);
       if (aimedAtModel) {
         push({ ruleId: 'hidden-html-comment', severity: 'high', file: rel, line, excerpt: excerpt(inner), message: 'Instruction-like text inside an HTML comment: invisible when rendered, visible to the model.' });
       } else if (inner.length > 200) {
