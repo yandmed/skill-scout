@@ -26,6 +26,18 @@ Já existem dezenas de milhares de skills públicas, e auditorias do setor encon
 /plugin install skill-scout@skill-scout
 ```
 
+Digite esses comandos na conversa do Claude Code. Se você usa o terminal, também pode rodar `claude plugin marketplace add yandmed/skill-scout` e `claude plugin install skill-scout@skill-scout`.
+
+**Usa só a extensão do VS Code ou do Cursor?** O comando `claude` pode não existir no seu terminal. Ele vem dentro da extensão, então chame pelo caminho completo no PowerShell:
+
+```powershell
+$c = (Get-ChildItem "$HOME\.cursor\extensions", "$HOME\.vscode\extensions" -Recurse -Filter claude.exe -ErrorAction SilentlyContinue | Select-Object -Last 1).FullName
+& $c plugin marketplace add yandmed/skill-scout
+& $c plugin install skill-scout@skill-scout
+```
+
+Depois recarregue a janela do editor.
+
 Para testar a partir de uma cópia local, sem publicar:
 
 ```bash
