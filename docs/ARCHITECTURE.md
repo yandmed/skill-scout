@@ -6,10 +6,13 @@ Skill Scout splits the work by what each side does well. **Code** handles anythi
  user request
       |
       v
- skills/scout/SKILL.md   orchestrates the conversation; never reads candidate files
+ skills/scout/SKILL.md   orchestrates the conversation, asks through dialogs; never reads candidate files
       |
       |  skill-scout analyze ----> local profile: stack, gaps, what's installed
-      |  skill-scout search  ----> 5 sources --> merge --> rank
+      |  skills/diagnose (fork) -> agents/project-analyst: reads the real code, returns needs
+      |  skill-scout search  ----> 10 sources --> merge --> rank --> collapse copies
+      |  skills/research (fork) -> agents/skill-researcher: web, returns GitHub links only (optional)
+      |  skill-scout resolve ----> pasted link or owner/repo --> candidate ids
       |  skill-scout vet     ----> pinned download to quarantine --> static scan
       |                                 |
       |  skills/audit (fork) <----------+  the turn waits for it
@@ -30,17 +33,24 @@ Skill Scout splits the work by what each side does well. **Code** handles anythi
 | `skills/scout/` | Main conversational workflow |
 | `skills/manage/` | Verify, update, remove, audit local skills |
 | `skills/audit/` | Internal: runs the auditor in isolation and waits for its report |
-| `agents/skill-auditor.md` | Read-only AI security audit |
+| `skills/diagnose/`, `skills/research/` | Internal: run the code reader and web researcher in isolation |
+| `agents/` | `skill-auditor`, `project-analyst` and `skill-researcher`, each with only the tools it needs |
 | `bin/` | Launchers; Claude Code adds this folder to PATH |
 | `scripts/scout.mjs` | CLI entry point |
 | `scripts/lib/analyze.mjs` | Project profile and gap detection |
-| `scripts/lib/sources.mjs` | Registry adapters |
+| `scripts/lib/sources.mjs` | Source adapters, merging, copy detection |
+| `scripts/lib/resolve.mjs` | Pasted links and repository contents |
+| `scripts/lib/gitignore.mjs` | Decides whether git would ignore a file, without running git |
+| `scripts/build-catalog.mjs` | Maintainer tool that rebuilds `data/catalog.json` |
+| `tools/mutation.mjs` | Breaks the code on purpose to measure whether the tests notice |
 | `scripts/lib/rank.mjs` | Explainable ranking |
 | `scripts/lib/vet.mjs` | Quarantine download and audit record |
 | `scripts/lib/scan.mjs`, `rules.mjs` | Static scanner and its rules |
 | `scripts/lib/install.mjs` | Install gate, lockfile, lifecycle |
 | `scripts/lib/report.mjs` | Keeps CLI output small enough for the model to read |
 | `data/taxonomy.json` | Gaps and technologies: **edit this to teach Skill Scout new things** |
+| `data/publishers.json` | Known publishers and curated lists |
+| `data/catalog.json` | Snapshot of their skills: names and locations only |
 
 ## Decisions, and why
 
@@ -75,14 +85,25 @@ Skill Scout splits the work by what each side does well. **Code** handles anythi
 
 **The quarantine stays outside the project.** Inside the working directory, reads wouldn't need permission, but a candidate's nested `CLAUDE.md` or `.claude/skills` could get loaded automatically. Hostile files must never sit where Claude Code looks for configuration. For the same reason, don't add the quarantine with `--add-dir`, which loads `.claude/skills` from the added folder.
 
+**Discover anywhere, download from Git.** Every source only produces a repository and a path. The files always come from GitHub at a pinned commit, so a site can recommend a skill but can't deliver something different from what gets reviewed. That's also why other Git hosts aren't supported: they have almost no skills and no anonymous search, and each one would be a new download path to defend.
+
+**A catalog snapshot ships with the plugin.** It makes searching known publishers instant, free of API calls, and possible when rate limited. A stale entry costs little, since vetting always reads the current files. It's refreshed through a pull request, so changes get reviewed.
+
+**Sources we chose not to use.** SkillsMP, claudemarketplaces and mdskills disallow automated access in `robots.txt` or their terms, or have terms we couldn't read, so they need the owner's permission first. ClawHub has a record of large malware campaigns, and many of its skills have no Git origin to pin. Smithery's search was returning errors. The rest need credentials or don't name a repository.
+
+**Dialogs keep the permissions alive.** A skill's pre-approvals end when the user sends a new message, but answering `AskUserQuestion` happens inside the turn. So decisions with clear options go through dialogs. For a typed reply, the workflow invokes itself again to get its permissions back.
+
+**The scanner is tuned against both errors.** Attack techniques live in `tests/scanner-attacks.test.mjs` and ordinary text in `tests/scanner-benign.test.mjs`. A pattern only earns a severity after being checked on real public skills: the first run over 400 of them falsely blocked 9, all fixed and kept as regressions.
+
 ## How it was validated
 
-- **Unit and adversarial tests** (`npm test`, 142 tests): attack samples, attempts to get past the gate, plugin wiring, and real false positives kept as regressions. Sabotaging the gate, the Unicode normalization and the ranking penalty, and putting the agent-name bug back, each made tests fail.
-- **Real-world corpus:** 61 public skills, including official Anthropic ones. The first version falsely blocked 3. After tuning: 0 blocked, 6 requiring acknowledgement, 15 caution, 40 no known issues. These are mostly reputable skills, not a verified-clean set, so this measures false alarms and says nothing about detection on real malware.
+- **Automated tests** (`npm test`, about 4,200 cases): every combination of inputs to the install gate, attack techniques in disguise, ordinary text that must not alarm, hostile repositories and registry responses on a fake network, every taxonomy entry, seeded random input, and the real CLI in separate processes. Many cases are generated from tables, so the count says less than it seems. Passing on Windows and on Ubuntu, with Node 20 and 22.
+- **Real-world corpus:** 400 public skills sampled from the catalog. The first run falsely blocked 9. After tuning on that same sample: 0 blocked, 92 requiring acknowledgement (61 of them for pre-approving unrestricted shell access, a real capability worth a decision), 68 caution, 240 no known issues. These are mostly reputable skills, not a verified-clean set, so this measures false alarms and says nothing about detection.
 - **AI auditor, live:** a data-theft skill with no detectable pattern, disguised as a table formatter (the scanner saw nothing), and a skill telling reviewers to report it as benign were both judged malicious. A legitimate control was judged benign. This is three samples: a sanity check rather than a measured detection rate.
-- **Full flow, live,** in Claude Code 2.1.316 against a sample Next.js project: no permission denials, the expected agent, model and tools, all audits recorded, nothing installed without approval, US$ 0.86 to 1.09 per run with an Opus main session.
+- **Full flow, live,** in Claude Code 2.1.316 against a sample Next.js project: no permission denials, the expected agents and tools, all audits recorded, nothing installed without approval.
+- **A simulated customer** answered real dialogs and permission prompts through the Agent SDK: the workflow read the code, opened its dialog, continued in the same turn, hit the permission prompt on install, and installed only the chosen skill, for US$ 0.63 with a Sonnet session.
 - **Install through a marketplace,** from a local folder, in an isolated configuration.
 
-**Not yet tested:** an interactive session (all live runs used `claude -p`, where nobody can answer a permission prompt, so the approval step itself hasn't been exercised by a person), installing from GitHub, macOS and Linux.
+**Not yet tested:** a person using it in a terminal or editor (the simulated customer drives the same prompts through the SDK, not the on-screen dialogs), and macOS, until CI runs there.
 
 To re-run the auditor samples, see `tests/audit-samples/`.

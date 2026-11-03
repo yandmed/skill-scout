@@ -2,23 +2,18 @@
 
 Ideas are ordered by value to the user. Nothing here is built yet.
 
-## Before publishing
-
-- **Try it in an interactive session.** All live tests used non-interactive mode, so the approval prompts haven't been used by a person yet.
-- **Choose the final name and owner.** A small repository named `skill-scout` already exists on GitHub, and `plugin.json` still has a placeholder author.
-- **Test on macOS and Linux,** and install from a real GitHub repository.
-
 ## Next
 
 - **Measure detection properly.** Run the scanner and auditor against a labeled malicious dataset such as MalSkillBench, and publish the numbers. Today's validation shows few false alarms, but not a detection rate.
+- **Well-known indexes.** Some vendors publish `/.well-known/agent-skills/index.json` with content digests, which could confirm a download matches what the vendor published.
 - **Plugin evals.** Add `claude plugin eval` cases so that changes to the `SKILL.md` workflow are tested, not just the CLI.
 - **Better fit scoring.** Keyword overlap still ranks some generic matches too high. The agent corrects this when choosing finalists, but a better first pass would reduce cost.
 
 ## More sources
 
-- Curated "awesome" lists, parsed from their READMEs.
-- GitLab and other Git hosts.
-- A reputation layer: known good publishers, and a shared blocklist of confirmed malicious skills.
+- SkillsMP, claudemarketplaces and mdskills, if their owners allow it.
+- GitLab and other Git hosts, if meaningful skill content appears there.
+- A shared blocklist of confirmed malicious skills.
 
 ## More useful recommendations
 
@@ -36,6 +31,6 @@ Ideas are ordered by value to the user. Nothing here is built yet.
 
 ## Distribution
 
-- Publish on GitHub and submit to the official plugin directory.
+- Submit to the official plugin directory.
 - Offer an English README alongside the Portuguese one.
 - Support other agents that use the Agent Skills format (Codex, Cursor and others), which mainly means new install paths.

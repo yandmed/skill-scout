@@ -2,7 +2,8 @@
   "name": "skill-scout",
   "description": "Skill Scout: find, vet and install the right Agent Skills for your project.",
   "owner": {
-    "name": "Skill Scout contributors"
+    "name": "yandmed",
+    "url": "https://github.com/yandmed"
   },
   "plugins": [
     {
@@ -10,7 +11,11 @@
       "description": "Analyzes your project, finds the best Agent Skills on GitHub and public registries, vets them for security, and installs the ones you approve.",
       "source": "./",
       "category": "productivity",
-      "tags": ["skills", "discovery", "security"]
+      "tags": [
+        "skills",
+        "discovery",
+        "security"
+      ]
     }
   ]
 }

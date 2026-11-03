@@ -22,7 +22,7 @@ Já existem dezenas de milhares de skills públicas, e auditorias do setor encon
 **Requisitos:** Claude Code e Node.js 20 ou mais recente. O GitHub CLI (`gh auth login`) é opcional, mas recomendado: sem ele a busca de código no GitHub fica desativada e o limite é de 60 chamadas por hora.
 
 ```
-/plugin marketplace add <seu-usuario>/skill-scout
+/plugin marketplace add yandmed/skill-scout
 /plugin install skill-scout@skill-scout
 ```
 
@@ -41,14 +41,18 @@ claude --plugin-dir /caminho/para/skill-scout
 | Verificar, atualizar ou remover skills instaladas | `/skill-scout:manage` |
 | Auditar uma skill que você já tem | `/skill-scout:manage audit .claude/skills/minha-skill` |
 
-Você também pode só pedir em português: "que skills estão faltando neste projeto?". Depois é só conversar: pedir comparações, outras opções ou outro rumo para a busca.
+Você também pode só pedir em português: "que skills estão faltando neste projeto?".
+
+## Conversando com o Skill Scout
+
+Tudo acontece dentro do próprio Claude Code, sem site nem conta nova. Ele pergunta quais áreas priorizar e quais skills instalar em diálogos de múltipla escolha, e você também pode responder escrevendo: pedir comparações, outras opções ou outro rumo para a busca. Também dá para colar um link ou um `owner/repo` e pedir a análise daquela skill.
 
 ## O que acontece
 
-1. **Analisa o projeto localmente.** Identifica a stack e o que falta em segurança, testes, qualidade de código, DevOps, documentação, dados, frontend e inovação.
-2. **Busca em cinco fontes:** `anthropics/skills`, o diretório oficial de plugins, skills.sh, claude-plugins.dev e a busca de código do GitHub.
-3. **Compara com critério.** Uma skill popular para uma tecnologia que você não usa fica atrás de uma menos conhecida que serve para o seu caso.
-4. **Coloca as finalistas em quarentena** em um commit fixo, como arquivos que não são executados.
+1. **Estuda o projeto na sua máquina.** Identifica a stack e o que falta em segurança, testes, qualidade de código, DevOps, documentação, dados, frontend e inovação. Um agente lê o código de verdade em busca de deficiências concretas, sem abrir arquivos `.env` nem chaves.
+2. **Busca em dez fontes:** `anthropics/skills`, o diretório oficial de plugins, um catálogo de skills dos próprios fabricantes (Stripe, Google, AWS, Sentry, Supabase e outros) e de listas curadas, skills.sh, claude-plugins.dev, Tessl, tópicos do GitHub, busca de código do GitHub e marketplaces de plugins. Se precisar, pesquisa também na web o que os profissionais recomendam.
+3. **Compara com critério.** Uma skill popular para uma tecnologia que você não usa fica atrás de uma menos conhecida que serve para o seu caso. A skill do fabricante da tecnologia sobe no ranking, cópias contam como uma só, e uma skill que usa o nome de outra é sinalizada.
+4. **Coloca as finalistas em quarentena** em um commit fixo do Git, como arquivos que não são executados. Qualquer que seja o site onde a skill foi descoberta, os arquivos sempre vêm do GitHub.
 5. **Verifica duas vezes:** um scanner de padrões e um auditor de IA que compara o que a skill diz fazer com o que ela faz.
 6. **Recomenda e explica** em linguagem simples, inclusive o que rejeitou e por quê.
 7. **Instala só o que você aprovar**, com a versão fixada e registrada.
@@ -65,17 +69,19 @@ Você também pode só pedir em português: "que skills estão faltando neste pr
 
 **O que isso não garante:** nenhuma ferramenta prova que uma skill é segura, e por isso o Skill Scout nunca usa essa palavra. Ele diz o que verificou e o que encontrou. Leia os limites em [SECURITY.md](SECURITY.md).
 
-**Privacidade:** a análise roda na sua máquina. Só termos técnicos genéricos saem para os registros públicos, nunca código, nomes de projeto ou segredos. O conteúdo de arquivos `.env` nunca é aberto.
+**Privacidade:** a análise roda na sua máquina, mas o trecho de código que o agente lê passa pelo modelo de IA da sua sessão do Claude Code, como em qualquer uso normal. Só termos técnicos genéricos saem para os registros públicos, nunca código, nomes de projeto ou segredos. O agente é instruído a não abrir arquivos `.env`, e a análise automática nunca os lê.
 
 ## Custo
 
-As buscas e o scanner não usam IA. Cada auditoria roda no modelo Sonnet. Nos nossos testes, uma execução completa com 3 auditorias custou entre US$ 0,86 e US$ 1,09, com o agente principal no Opus. O valor muda conforme o modelo da sua sessão, o tamanho das skills e o quanto você conversa.
+As buscas e o scanner não usam IA. Cada auditoria e a leitura do código rodam no modelo Sonnet. Nos nossos testes, uma execução completa com 3 auditorias custou US$ 0,63 com a sessão inteira no Sonnet, e entre US$ 0,86 e US$ 1,09 com o agente principal no Opus, numa versão anterior. O valor muda conforme o modelo da sua sessão, o tamanho das skills e o quanto você conversa.
 
 ## Desenvolvimento
 
 ```bash
 npm test                        # testes, sem dependências nem rede
 node scripts/scout.mjs doctor   # verifica Node, GitHub e registros
+node tools/mutation.mjs --limit 100  # quebra o código de propósito e vê se os testes percebem
+npm run build:catalog           # atualiza data/catalog.json
 claude plugin validate . --strict
 ```
 

@@ -1,0 +1,38 @@
+name: Refresh catalog
+
+# Keeps data/catalog.json current. It holds names and locations only, and any change arrives
+# as a pull request, so a poisoned listing is reviewable before it ships.
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node scripts/build-catalog.mjs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: npm test
+      - name: Open a pull request if anything changed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if git diff --quiet data/catalog.json; then exit 0; fi
+          branch="catalog-$(date +%Y%m%d)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add data/catalog.json
+          git commit -m "Refresh skill catalog"
+          git push -u origin "$branch"
+          gh pr create --fill

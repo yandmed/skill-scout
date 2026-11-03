@@ -344,6 +344,21 @@ const RAW = [
     pattern: /\b(?:reviewers?|auditors?|scanners?|security\s+(?:tools?|checks?|review(?:er)?s?))\b[^\n]{0,60}\b(?:report|mark|classify|treat|consider|label)\b[^\n]{0,40}\b(?:benign|harmless|clean|trusted|verified|safe)\b|\b(?:do\s+not|don't|never)\s+flag\s+this\s+(?:skill|package|plugin|repository)\b|\bthis\s+(?:skill|file|package)\s+(?:is|has\s+been)\s+(?:verified|pre-?approved|audited)\s+(?:as\s+safe\s+)?by\s+(?:anthropic|security)\b/i,
     message: 'Tries to talk a security reviewer into approving it.',
   },
+  // --- Found by studying the misses on a benchmark's validation set ----------------------------
+  {
+    id: 'gated-trigger',
+    severity: 'high',
+    scope: 'docs',
+    pattern: /\bif\s+the\s+user(?:'s)?\s+(?:mentions?|says?|asks?\s+about|input\s+contains?|message\s+contains?|request\s+contains?)\b[^\n]*\b(?:must|always|first|run|execute)\b[^\n]*\.(?:py|sh|js|mjs|ps1)\b|\b(?:before|prior\s+to)\s+(?:producing|responding|answering|replying|the\s+main)\b[^\n]*\b(?:run|execute)\b[^\n]*\.(?:py|sh|js|mjs|ps1)\b|\balways\s+(?:run|execute)\b[^\n]*\.(?:py|sh|js|mjs|ps1)\b[^\n]*\bwhen\s+the\s+user(?:'s)?\s+(?:mentions?|input|message|request)\b/i,
+    message: 'Runs a script only when certain words appear, a way to stay dormant until a target shows up.',
+  },
+  {
+    id: 'hidden-bootstrap-script',
+    severity: 'high',
+    scope: 'docs',
+    pattern: /\b(?:run|execute|invoke|launch)\b[^\n]{0,80}[\x60"'\s/](?:scripts?|bin|tools?|lib)\/_[\w-]+\.(?:py|sh|js|mjs|ps1)\b/i,
+    message: 'Tells the agent to run a script with a hidden-style name, often presented as a setup step.',
+  },
 ];
 
 export const LINE_RULES = RAW;

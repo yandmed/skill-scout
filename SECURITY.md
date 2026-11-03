@@ -17,9 +17,18 @@ Skill Scout installs third-party instructions and code into an environment that 
 | Hooks, MCP servers, monitors and `bin/` executables | Flagged as high: they run outside the sandbox. Plugins are never installed by Skill Scout itself |
 | Dynamic context (`` !`cmd` ``), which runs with no prompt on invocation | High; critical if it uses the network |
 | Self-granted permissions (`allowed-tools: Bash`) | High when unrestricted or scoped to a powerful command such as `curl` or `security`; medium for other scoped grants |
+| Keyword-gated payloads ("if the user mentions X, first run scripts/_x.py") | `gated-trigger` and `hidden-bootstrap-script` rules |
+| Reverse shells, secret uploads, DNS exfiltration, built-in Windows download tools, miners | Dedicated rules, critical in scripts and high in documentation |
+| Disguised commands (`c"u"r"l`, `${IFS}`, look-alike letters, base64, a download run several lines later) | Text is normalized and deobfuscated before matching; base64 is decoded and scanned; downloaded paths are followed through the file |
+| A hostile file built to hang the scanner | Regexes are checked against pathological input by tests, long lines are scanned in bounded windows, and `.gitignore` patterns use a matcher with bounded cost |
+| Text in a registry listing aimed at the orchestrating model | Candidates with steering text in the name are dropped, and such descriptions are replaced before the model sees them |
+| Web pages and project files steering the agents that read them | Each runs in an isolated, tool-restricted agent. The researcher can only hand back links, which still go through full vetting |
+| A repository impersonating a known publisher | Publisher status is matched by exact repository, and a skill reusing a known publisher's name from elsewhere is marked and ranked down |
+| File names that mean something else on disk (NTFS streams, device names, case collisions) | Blocked and never written |
 | Malicious update after a trusted install | Pinned commit; updates go through full vetting; `verify` detects tampering |
 | Swapping files between review and install | Content hash re-checked and full re-scan at install time; audit bound to the hash |
-| Symlinks, path traversal, disguised binaries | Symlinks are never written; paths are validated; executables are detected by magic bytes; execute bits are dropped |
+| Symlinks, path traversal, disguised binaries | Symlinks are never written, and any link out of the repository blocks; paths are validated; executables are detected by magic bytes; execute bits are dropped |
+| A tampered vetting record or lockfile | An unknown audit result fails closed; a record must match its id; the scan is redone at install; a corrupt lockfile is an error, and impossible entries are ignored |
 
 ## Design principles
 
@@ -40,15 +49,18 @@ Please read these. They are real.
 - **The auditor's tool restriction depends on Claude Code resolving the agent.** A wrong name fails silently into a general agent with shell access. A test guards the name and the prompt tells the agent to stop, but the prompt is an instruction to a model, not an enforcement.
 - **Files outside the candidate aren't reviewed.** Anything a skill fetches at runtime wasn't seen. The auditor flags this as `runtime-code-fetch` when it notices it.
 - **A skill that passed can still behave differently depending on context,** since skills are instructions interpreted by a model at runtime.
-- **Skill Scout only scans public GitHub repositories,** and plugins it vets can change between vetting and your install through `/plugin`, because Claude Code's plugin manager fetches them itself.
+- **Skill Scout only reviews public GitHub repositories.** Other hosts hold very little skill content and offer no anonymous search, so they are not supported. Also, plugins it vets can change between vetting and your install through `/plugin`, because Claude Code's plugin manager fetches them itself.
 - **Registry signals can be gamed.** Stars and install counts are capped in the ranking and are never treated as evidence of safety.
-- **The skills.sh and claude-plugins.dev APIs are not formally documented** as far as we could find. They may change, in which case those sources fail visibly and the search continues without them.
+- **The skills.sh, claude-plugins.dev and Tessl APIs are not formally documented or are marked experimental,** as far as we could find. They may change, in which case those sources fail visibly and the search continues without them. A registry's own quality score is shown as information and never counts as a security result.
+- **Being on the publisher list raises ranking, not safety.** A vendor's repository can be compromised, so its skills go through the same review.
+- **The project analyst and web researcher are told what not to do, but can't be forced.** A plugin can't restrict file paths, so the instruction not to open `.env` files is followed by a model rather than enforced. The automatic profile (`analyze`) does enforce it, in code.
 
 ## What it accesses on your machine
 
-- **Reads:** file names in your project, dependency manifests, `.gitignore`, the `enabledPlugins` key of Claude Code settings, and folder names in your skills directories. It never opens `.env` files or `~/.claude/.credentials.json`.
+- **Reads, automatically:** file names in your project, dependency manifests, `.gitignore`, the `enabledPlugins` key of Claude Code settings, and folder names in your skills directories. It never opens `.env` files or `~/.claude/.credentials.json`.
+- **Reads, through the project analyst:** up to about 15 of your project's files, which pass through your session's AI model as in any Claude Code use.
 - **Writes:** `~/.skill-scout/` (quarantine and cache). With your approval: `.claude/skills/<name>/` and `.claude/skill-scout.lock.json`, or the same paths under `~/.claude/`.
-- **Network:** `api.github.com` (with your `gh` token, sent to this host only), `raw.githubusercontent.com`, `skills.sh`, and `api.claude-plugins.dev`. Search terms go to all of them; project content goes to none.
+- **Network:** `api.github.com` (with your `gh` token, sent to this host only), `raw.githubusercontent.com`, `skills.sh`, `api.claude-plugins.dev`, and `api.tessl.io`, plus whatever pages the web researcher opens when it is used. Search terms go to these services; project content goes to none. Redirects to another host are refused.
 
 ## Reporting a problem
 
